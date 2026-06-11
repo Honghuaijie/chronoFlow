@@ -13,12 +13,24 @@ import (
 	"github.com/gorilla/handlers"
 )
 
-func NewHTTPServer(c *conf.Server, userSvc *service.UserService, logger log.Logger) *http.Server {
+func NewHTTPServer(
+	c *conf.Server,
+	security *conf.Security,
+	authSvc *service.AuthService,
+	userSvc *service.UserService,
+	executorSvc *service.ExecutorService,
+	jobSvc *service.JobService,
+	glueSvc *service.GlueService,
+	jobLogSvc *service.JobLogService,
+	callbackSvc *service.CallbackService,
+	logger log.Logger,
+) *http.Server {
 	opts := []http.ServerOption{
 		// 给kratos的http服务注册一个“统一错误处理函数”--只要业务层返回err，都会调用这个方法
 		http.ErrorEncoder(errorEncoder),
 		http.Middleware(
 			requestLogMiddleware(logger),
+			adminAuthMiddleware(security),
 			recovery.Recovery(),
 			validate.Validator(),
 		),
@@ -43,7 +55,13 @@ func NewHTTPServer(c *conf.Server, userSvc *service.UserService, logger log.Logg
 	}
 
 	srv := http.NewServer(opts...)
+	v1.RegisterAuthHTTPServer(srv, authSvc)
 	v1.RegisterUserHTTPServer(srv, userSvc)
+	v1.RegisterExecutorHTTPServer(srv, executorSvc)
+	v1.RegisterJobHTTPServer(srv, jobSvc)
+	v1.RegisterGlueHTTPServer(srv, glueSvc)
+	v1.RegisterJobLogHTTPServer(srv, jobLogSvc)
+	v1.RegisterJobRunCallbackHTTPServer(srv, callbackSvc)
 	srv.Route("").GET("/health", handler.HealthCheckHandler)
 	srv.Route("").POST("/v1/users/avatarUpload", userSvc.AvatarUpload)
 	log.NewHelper(logger).Info("http routes registered")

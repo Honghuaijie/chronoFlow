@@ -9,6 +9,7 @@ import (
 
 	"chronoFlow-admin/internal/conf"
 	"chronoFlow-admin/internal/logger"
+	"chronoFlow-admin/internal/worker"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
@@ -34,10 +35,6 @@ func init() {
 }
 
 func main() {
-	if err := setTimeZone("Asia/Shanghai"); err != nil {
-		log.Fatalf("failed to set time zone: %v", err)
-	}
-
 	flag.Parse()
 	cfg, err := loadConfig(flagconf, curEnv)
 	if err != nil {
@@ -49,9 +46,15 @@ func main() {
 	if err := cfg.Scan(&bc); err != nil {
 		log.Fatalf("failed to scan config: %v", err)
 	}
+	if err := conf.ValidateChronoFlow(&bc); err != nil {
+		log.Fatalf("invalid ChronoFlow config: %v", err)
+	}
+	if err := setTimeZone(configuredTimezone(&bc)); err != nil {
+		log.Fatalf("failed to set time zone: %v", err)
+	}
 
 	appLogger := logger.NewLogger(Name, bc.Logging)
-	app, cleanup, err := wireApp(bc.Server, bc.Data, appLogger)
+	app, cleanup, err := wireApp(bc.Server, bc.Data, bc.Security, bc.Logs, bc.Executor, bc.Recovery, bc.Scheduler, appLogger)
 	if err != nil {
 		log.Fatalf("failed to init app: %v", err)
 	}
@@ -70,6 +73,13 @@ func setTimeZone(tz string) error {
 	return nil
 }
 
+func configuredTimezone(bc *conf.Bootstrap) string {
+	if bc != nil && bc.Scheduler != nil && bc.Scheduler.Timezone != "" {
+		return bc.Scheduler.Timezone
+	}
+	return "Asia/Shanghai"
+}
+
 func loadConfig(basePath, env string) (config.Config, error) {
 	sources := []config.Source{
 		file.NewSource(filepath.Join(basePath, "config.yaml")),
@@ -85,13 +95,13 @@ func loadConfig(basePath, env string) (config.Config, error) {
 	return c, nil
 }
 
-func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
+func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, ws *worker.Server) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
 		kratos.Version(Version),
 		kratos.Metadata(map[string]string{}),
 		kratos.Logger(logger),
-		kratos.Server(gs, hs),
+		kratos.Server(gs, hs, ws),
 	)
 }

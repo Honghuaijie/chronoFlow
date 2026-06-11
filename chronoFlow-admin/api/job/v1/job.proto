@@ -1,0 +1,211 @@
+syntax = "proto3";
+
+package job.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "chronoFlow-admin/api/all-pb-go/v1;v1";
+
+service Job {
+  rpc CreateJob (CreateJobRequest) returns (CreateJobReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/jobs/create"
+      body: "*"
+    };
+  }
+
+  rpc UpdateJob (UpdateJobRequest) returns (UpdateJobReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/jobs/update"
+      body: "*"
+    };
+  }
+
+  rpc DeleteJob (DeleteJobRequest) returns (DeleteJobReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/jobs/delete"
+      body: "*"
+    };
+  }
+
+  rpc GetJob (GetJobRequest) returns (GetJobReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/jobs/get/{id}"
+    };
+  }
+
+  rpc ListJobs (ListJobsRequest) returns (ListJobsReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/jobs/list"
+    };
+  }
+
+  rpc StartJob (StartJobRequest) returns (StartJobReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/jobs/start"
+      body: "*"
+    };
+  }
+
+  rpc StopJob (StopJobRequest) returns (StopJobReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/jobs/stop"
+      body: "*"
+    };
+  }
+
+  rpc RunJob (RunJobRequest) returns (RunJobReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/jobs/run"
+      body: "*"
+    };
+  }
+
+  rpc KillJob (KillJobRequest) returns (KillJobReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/jobs/kill"
+      body: "*"
+    };
+  }
+}
+
+message JobInfo {
+  int64 id = 1;
+  int64 executor_id = 2;
+  string name = 3;
+  string cron_expr = 4;
+  int32 timeout_seconds = 5;
+  string schedule_status = 6;
+  string description = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+message CreateJobRequest {
+  int64 executor_id = 1;
+  string name = 2;
+  string cron_expr = 3;
+  int32 timeout_seconds = 4;
+  string description = 5;
+}
+
+message UpdateJobRequest {
+  int64 id = 1;
+  int64 executor_id = 2;
+  string name = 3;
+  string cron_expr = 4;
+  int32 timeout_seconds = 5;
+  string description = 6;
+}
+
+message DeleteJobRequest {
+  int64 id = 1;
+}
+
+message GetJobRequest {
+  int64 id = 1;
+}
+
+message ListJobsRequest {
+  int64 executor_id = 1;
+}
+
+message StartJobRequest {
+  int64 id = 1;
+}
+
+message StopJobRequest {
+  int64 id = 1;
+}
+
+message RunJobRequest {
+  int64 id = 1;
+}
+
+message KillJobRequest {
+  int64 id = 1;
+}
+
+message CreateJobReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    JobInfo job = 1;
+  }
+  Data data = 3;
+}
+
+message UpdateJobReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    JobInfo job = 1;
+  }
+  Data data = 3;
+}
+
+message DeleteJobReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    int64 id = 1;
+  }
+  Data data = 3;
+}
+
+message GetJobReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    JobInfo job = 1;
+  }
+  Data data = 3;
+}
+
+message ListJobsReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    repeated JobInfo items = 1;
+    int32 total = 2;
+  }
+  Data data = 3;
+}
+
+message StartJobReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    JobInfo job = 1;
+  }
+  Data data = 3;
+}
+
+message StopJobReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    JobInfo job = 1;
+  }
+  Data data = 3;
+}
+
+message RunJobReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    int64 log_id = 1;
+    string status = 2;
+  }
+  Data data = 3;
+}
+
+message KillJobReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    int64 log_id = 1;
+    string status = 2;
+  }
+  Data data = 3;
+}

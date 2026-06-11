@@ -10,7 +10,17 @@ import (
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 )
 
-func NewGRPCServer(c *conf.Server, userSvc *service.UserService, logger log.Logger) *grpc.Server {
+func NewGRPCServer(
+	c *conf.Server,
+	authSvc *service.AuthService,
+	userSvc *service.UserService,
+	executorSvc *service.ExecutorService,
+	jobSvc *service.JobService,
+	glueSvc *service.GlueService,
+	jobLogSvc *service.JobLogService,
+	callbackSvc *service.CallbackService,
+	logger log.Logger,
+) *grpc.Server {
 	opts := []grpc.ServerOption{
 		grpc.Middleware(
 			requestLogMiddleware(logger),
@@ -30,6 +40,12 @@ func NewGRPCServer(c *conf.Server, userSvc *service.UserService, logger log.Logg
 	}
 
 	srv := grpc.NewServer(opts...)
+	v1.RegisterAuthServer(srv, authSvc)
 	v1.RegisterUserServer(srv, userSvc)
+	v1.RegisterExecutorServer(srv, executorSvc)
+	v1.RegisterJobServer(srv, jobSvc)
+	v1.RegisterGlueServer(srv, glueSvc)
+	v1.RegisterJobLogServer(srv, jobLogSvc)
+	v1.RegisterJobRunCallbackServer(srv, callbackSvc)
 	return srv
 }

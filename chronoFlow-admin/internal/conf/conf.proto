@@ -10,6 +10,11 @@ message Bootstrap {
   Server server = 1;
   Data data = 2;
   Logging logging = 3;
+  Scheduler scheduler = 4;
+  Executor executor = 5;
+  Security security = 6;
+  Logs logs = 7;
+  Recovery recovery = 8;
 }
 
 message Server {
@@ -25,6 +30,7 @@ message Server {
   }
   HTTP http = 1;
   GRPC grpc = 2;
+  string public_base_url = 3;
 }
 
 message Data {
@@ -60,4 +66,34 @@ message Logging {
     int32 maxAge = 5;
     bool compress = 6;
   }
+}
+
+message Scheduler {
+  string timezone = 1;
+}
+
+message Executor {
+  int32 health_check_interval_seconds = 1;
+  int32 health_check_fail_threshold = 2;
+  int32 request_timeout_seconds = 3;
+}
+
+message Security {
+  string jwt_secret = 1;
+  string token_encrypt_key = 2;
+  string callback_token = 3;
+  string admin_username = 4;
+  string admin_password = 5;
+}
+
+message Logs {
+  string data_dir = 1;
+  int64 max_log_bytes = 2;
+  int32 retention_days = 3;
+  string cleanup_cron = 4;
+}
+
+message Recovery {
+  int32 startup_running_grace_seconds = 1;
+  int32 killing_timeout_seconds = 2;
 }

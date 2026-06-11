@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package executor.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "chronoFlow-admin/api/all-pb-go/v1;v1";
+
+service Executor {
+  rpc CreateExecutor (CreateExecutorRequest) returns (CreateExecutorReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/executors/create"
+      body: "*"
+    };
+  }
+
+  rpc UpdateExecutor (UpdateExecutorRequest) returns (UpdateExecutorReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/executors/update"
+      body: "*"
+    };
+  }
+
+  rpc DeleteExecutor (DeleteExecutorRequest) returns (DeleteExecutorReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/executors/delete"
+      body: "*"
+    };
+  }
+
+  rpc GetExecutor (GetExecutorRequest) returns (GetExecutorReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/executors/get/{id}"
+    };
+  }
+
+  rpc ListExecutors (ListExecutorsRequest) returns (ListExecutorsReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/executors/list"
+    };
+  }
+}
+
+message ExecutorInfo {
+  int64 id = 1;
+  string name = 2;
+  string address = 3;
+  string description = 4;
+  string status = 5;
+  int32 heartbeat_fail_count = 6;
+  string last_heartbeat_time = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+message CreateExecutorRequest {
+  string name = 1;
+  string address = 2;
+  string token = 3;
+  string description = 4;
+}
+
+message UpdateExecutorRequest {
+  int64 id = 1;
+  string name = 2;
+  string address = 3;
+  string token = 4;
+  string description = 5;
+}
+
+message DeleteExecutorRequest {
+  int64 id = 1;
+}
+
+message GetExecutorRequest {
+  int64 id = 1;
+}
+
+message ListExecutorsRequest {}
+
+message CreateExecutorReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    ExecutorInfo executor = 1;
+  }
+  Data data = 3;
+}
+
+message UpdateExecutorReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    ExecutorInfo executor = 1;
+  }
+  Data data = 3;
+}
+
+message DeleteExecutorReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    int64 id = 1;
+  }
+  Data data = 3;
+}
+
+message GetExecutorReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    ExecutorInfo executor = 1;
+  }
+  Data data = 3;
+}
+
+message ListExecutorsReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    repeated ExecutorInfo items = 1;
+    int32 total = 2;
+  }
+  Data data = 3;
+}
+

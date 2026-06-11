@@ -7,6 +7,7 @@ server:
     network: tcp
     addr: 0.0.0.0:11003
     timeout: 30s
+  public_base_url: "${PUBLIC_BASE_URL:http://127.0.0.1:10003}"
 
 data:
   database:
@@ -34,3 +35,28 @@ logging:
     maxBackups: 5
     maxAge: 30
     compress: false
+
+scheduler:
+  timezone: "${SCHEDULER_TIMEZONE:Asia/Shanghai}"
+
+executor:
+  health_check_interval_seconds: 10
+  health_check_fail_threshold: 3
+  request_timeout_seconds: 10
+
+security:
+  jwt_secret: "${JWT_SECRET:change-me}"
+  token_encrypt_key: "${CHRONOFLOW_TOKEN_ENCRYPT_KEY:12345678901234567890123456789012}"
+  callback_token: "${CHRONOFLOW_CALLBACK_TOKEN:change-me-callback-token}"
+  admin_username: "${CHRONOFLOW_ADMIN_USERNAME:admin}"
+  admin_password: "${CHRONOFLOW_ADMIN_PASSWORD:admin123}"
+
+logs:
+  data_dir: "${CHRONOFLOW_LOG_DATA_DIR:./data}"
+  max_log_bytes: 5242880
+  retention_days: 30
+  cleanup_cron: "0 0 3 * * *"
+
+recovery:
+  startup_running_grace_seconds: 120
+  killing_timeout_seconds: 60

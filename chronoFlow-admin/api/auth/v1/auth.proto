@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package auth.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "chronoFlow-admin/api/all-pb-go/v1;v1";
+
+service Auth {
+  rpc Login (LoginRequest) returns (LoginReply) {
+    option (google.api.http) = {
+      post: "/v1/public/auth/login"
+      body: "*"
+    };
+  }
+
+  rpc Current (CurrentRequest) returns (CurrentReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/auth/current"
+    };
+  }
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message CurrentRequest {}
+
+message LoginReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    string token = 1;
+    string username = 2;
+  }
+  Data data = 3;
+}
+
+message CurrentReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    int32 user_id = 1;
+    string username = 2;
+    string role = 3;
+  }
+  Data data = 3;
+}
+

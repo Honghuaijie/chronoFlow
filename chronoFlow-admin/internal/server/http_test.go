@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"chronoFlow-admin/internal/biz"
+	"chronoFlow-admin/internal/conf"
 	"chronoFlow-admin/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -49,11 +50,126 @@ func (fakeTx) ExecTx(ctx context.Context, fn func(context.Context) error) error 
 	return fn(ctx)
 }
 
+type fakeExecutorRepo struct{}
+
+func (fakeExecutorRepo) Create(context.Context, *biz.Executor) (*biz.Executor, error) {
+	return nil, nil
+}
+
+func (fakeExecutorRepo) GetByID(context.Context, int64) (*biz.Executor, error) {
+	return nil, nil
+}
+
+func (fakeExecutorRepo) List(context.Context) ([]*biz.Executor, error) {
+	return nil, nil
+}
+
+func (fakeExecutorRepo) Update(context.Context, *biz.Executor) (*biz.Executor, error) {
+	return nil, nil
+}
+
+func (fakeExecutorRepo) Delete(context.Context, int64) error {
+	return nil
+}
+
+type fakeTokenCipher struct{}
+
+func (fakeTokenCipher) Encrypt(plaintext string) (string, error) {
+	return plaintext, nil
+}
+
+func (fakeTokenCipher) Decrypt(ciphertext string) (string, error) {
+	return ciphertext, nil
+}
+
+type fakeJobRepo struct{}
+
+func (fakeJobRepo) Create(context.Context, *biz.Job) (*biz.Job, error) {
+	return nil, nil
+}
+
+func (fakeJobRepo) GetByID(context.Context, int64) (*biz.Job, error) {
+	return nil, nil
+}
+
+func (fakeJobRepo) List(context.Context, int64) ([]*biz.Job, error) {
+	return nil, nil
+}
+
+func (fakeJobRepo) Update(context.Context, *biz.Job) (*biz.Job, error) {
+	return nil, nil
+}
+
+func (fakeJobRepo) Delete(context.Context, int64) error {
+	return nil
+}
+
+type fakeGlueRepo struct{}
+
+func (fakeGlueRepo) GetByJobID(context.Context, int64) (*biz.Glue, error) {
+	return nil, nil
+}
+
+func (fakeGlueRepo) Save(context.Context, *biz.Glue) (*biz.Glue, error) {
+	return nil, nil
+}
+
+type fakeJobLogRepo struct{}
+
+func (fakeJobLogRepo) List(context.Context, biz.JobLogFilter) ([]*biz.JobLog, int64, error) {
+	return nil, 0, nil
+}
+
+func (fakeJobLogRepo) GetByID(context.Context, int64) (*biz.JobLog, error) {
+	return nil, nil
+}
+
+func (fakeJobLogRepo) GetRunningByJobID(context.Context, int64) (*biz.JobLog, error) {
+	return nil, nil
+}
+
+func (fakeJobLogRepo) Create(context.Context, *biz.JobLog) (*biz.JobLog, error) {
+	return nil, nil
+}
+
+func (fakeJobLogRepo) Update(context.Context, *biz.JobLog) (*biz.JobLog, error) {
+	return nil, nil
+}
+
+type fakeLogReader struct{}
+
+func (fakeLogReader) Read(context.Context, string) (string, error) {
+	return "", nil
+}
+
+type fakeLogWriter struct{}
+
+func (fakeLogWriter) Write(context.Context, int64, int64, string) (string, int64, error) {
+	return "", 0, nil
+}
+
 func newTestHTTPServer(repo fakeUserRepo) *httptest.Server {
 	logger := log.NewStdLogger(io.Discard)
 	uc := biz.NewUserUsecase(repo, fakeTx{}, logger)
 	userSvc := service.NewUserService(uc)
-	srv := NewHTTPServer(nil, userSvc, logger)
+	executorUC := biz.NewExecutorUsecase(fakeExecutorRepo{}, fakeTokenCipher{}, logger)
+	executorSvc := service.NewExecutorService(executorUC)
+	glueUC := biz.NewGlueUsecase(fakeGlueRepo{}, logger)
+	jobUC := biz.NewJobUsecase(fakeJobRepo{}, fakeGlueRepo{}, logger)
+	jobLogUC := biz.NewJobLogUsecase(fakeJobLogRepo{}, fakeLogReader{}, logger)
+	callbackUC := biz.NewCallbackUsecase(fakeJobLogRepo{}, fakeLogWriter{}, biz.CallbackConfig{MaxLogBytes: 1024}, logger)
+	srv := NewHTTPServer(
+		nil,
+		&conf.Security{JwtSecret: "secret", AdminUsername: "admin", AdminPassword: "admin123", CallbackToken: "callback"},
+		service.NewAuthService(&conf.Security{JwtSecret: "secret", AdminUsername: "admin", AdminPassword: "admin123", CallbackToken: "callback"}),
+		userSvc,
+		executorSvc,
+		service.NewJobService(jobUC, nil, nil),
+		service.NewGlueService(glueUC),
+		service.NewJobLogService(jobLogUC),
+		service.NewCallbackService(callbackUC, &conf.Security{CallbackToken: "callback"}),
+		logger,
+	)
 	return httptest.NewServer(srv)
 }
 

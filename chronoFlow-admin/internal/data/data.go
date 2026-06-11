@@ -16,7 +16,24 @@ import (
 )
 
 // ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewDB, NewTransaction, NewUserRepo)
+var ProviderSet = wire.NewSet(
+	NewData,
+	NewDB,
+	NewTransaction,
+	NewUserRepo,
+	NewExecutorRepo,
+	NewJobRepo,
+	NewGlueRepo,
+	NewJobLogRepo,
+	wire.Bind(new(biz.ExecutorRepo), new(*ExecutorRepo)),
+	wire.Bind(new(biz.ExecutorLookupRepo), new(*ExecutorRepo)),
+	wire.Bind(new(biz.JobRepo), new(*JobRepo)),
+	wire.Bind(new(biz.JobLookupRepo), new(*JobRepo)),
+	wire.Bind(new(biz.GlueRepo), new(*GlueRepo)),
+	wire.Bind(new(biz.JobLogRepo), new(*JobLogRepo)),
+	wire.Bind(new(biz.JobRunLogRepo), new(*JobLogRepo)),
+	wire.Bind(new(biz.JobLogMaintenanceRepo), new(*JobLogRepo)),
+)
 
 type Data struct {
 	log *log.Helper
@@ -59,7 +76,7 @@ func NewDB(c *conf.Data) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&User{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &Executor{}, &Job{}, &JobGlue{}, &JobLog{}); err != nil {
 		return nil, err
 	}
 	return db, nil

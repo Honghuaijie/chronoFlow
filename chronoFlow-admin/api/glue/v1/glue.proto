@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package glue.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "chronoFlow-admin/api/all-pb-go/v1;v1";
+
+service Glue {
+  rpc GetGlue (GetGlueRequest) returns (GetGlueReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/glues/get"
+    };
+  }
+
+  rpc SaveGlue (SaveGlueRequest) returns (SaveGlueReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/glues/save"
+      body: "*"
+    };
+  }
+}
+
+message GlueInfo {
+  int64 id = 1;
+  int64 job_id = 2;
+  string content = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+message GetGlueRequest {
+  int64 job_id = 1;
+}
+
+message SaveGlueRequest {
+  int64 job_id = 1;
+  string content = 2;
+}
+
+message GetGlueReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    GlueInfo glue = 1;
+  }
+  Data data = 3;
+}
+
+message SaveGlueReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    GlueInfo glue = 1;
+  }
+  Data data = 3;
+}
+

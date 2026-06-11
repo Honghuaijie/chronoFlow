@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package internal.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "chronoFlow-admin/api/all-pb-go/v1;v1";
+
+service JobRunCallback {
+  rpc CallbackJobRun (CallbackJobRunRequest) returns (CallbackJobRunReply) {
+    option (google.api.http) = {
+      post: "/internal/job-runs/callback"
+      body: "*"
+    };
+  }
+}
+
+message CallbackJobRunRequest {
+  int64 log_id = 1;
+  int64 job_id = 2;
+  string status = 3;
+  int32 exit_code = 4;
+  string log_content = 5;
+  bool log_truncated = 6;
+  string start_time = 7;
+  string end_time = 8;
+  int64 duration_ms = 9;
+  string error_message = 10;
+}
+
+message CallbackJobRunReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    int64 log_id = 1;
+    string status = 2;
+  }
+  Data data = 3;
+}
+

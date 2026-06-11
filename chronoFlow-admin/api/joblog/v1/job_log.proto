@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package joblog.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "chronoFlow-admin/api/all-pb-go/v1;v1";
+
+service JobLog {
+  rpc ListJobLogs (ListJobLogsRequest) returns (ListJobLogsReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/jobLogs/list"
+    };
+  }
+
+  rpc GetJobLogDetail (GetJobLogDetailRequest) returns (GetJobLogDetailReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/jobLogs/detail/{id}"
+    };
+  }
+}
+
+message JobLogInfo {
+  int64 id = 1;
+  int64 job_id = 2;
+  string job_name = 3;
+  int64 executor_id = 4;
+  string executor_name = 5;
+  string executor_address = 6;
+  string cron_expr = 7;
+  int32 timeout_seconds = 8;
+  string trigger_type = 9;
+  string status = 10;
+  string start_time = 11;
+  string end_time = 12;
+  int64 duration_ms = 13;
+  int32 exit_code = 14;
+  string log_path = 15;
+  int64 log_size_bytes = 16;
+  bool log_truncated = 17;
+  string error_message = 18;
+  string created_at = 19;
+  string updated_at = 20;
+}
+
+message ListJobLogsRequest {
+  int64 job_id = 1;
+  int64 executor_id = 2;
+  string status = 3;
+  string trigger_type = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+message GetJobLogDetailRequest {
+  int64 id = 1;
+}
+
+message ListJobLogsReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    repeated JobLogInfo items = 1;
+    int32 total = 2;
+  }
+  Data data = 3;
+}
+
+message GetJobLogDetailReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    JobLogInfo log = 1;
+    string glue_snapshot = 2;
+    string log_content = 3;
+  }
+  Data data = 3;
+}
+
