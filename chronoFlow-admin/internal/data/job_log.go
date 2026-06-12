@@ -5,8 +5,11 @@ import (
 	"time"
 
 	"chronoFlow-admin/internal/biz"
+	httpErrors "chronoFlow-admin/internal/errors"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type JobLogRepo struct {
@@ -24,6 +27,36 @@ func (r *JobLogRepo) Create(ctx context.Context, jobLog *biz.JobLog) (*biz.JobLo
 		return nil, err
 	}
 	return toBizJobLog(model), nil
+}
+
+func (r *JobLogRepo) CreateRunningIfNoActive(ctx context.Context, jobLog *biz.JobLog) (*biz.JobLog, error) {
+	var created *biz.JobLog
+	err := r.data.DB(ctx).WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var job Job
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&job, uint64(jobLog.JobID)).Error; err != nil {
+			return err
+		}
+		var active JobLog
+		err := tx.Where("job_id = ? AND status IN ?", jobLog.JobID, []string{biz.JobLogStatusRunning, biz.JobLogStatusKilling}).
+			Order("id desc").
+			First(&active).Error
+		if err == nil {
+			return httpErrors.EWithMessage(httpErrors.ErrConflict, "任务正在执行中")
+		}
+		if !isNotFound(err) {
+			return err
+		}
+		model := toJobLogModel(jobLog)
+		if err := tx.Create(model).Error; err != nil {
+			return err
+		}
+		created = toBizJobLog(model)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return created, nil
 }
 
 func (r *JobLogRepo) GetRunningByJobID(ctx context.Context, jobID int64) (*biz.JobLog, error) {

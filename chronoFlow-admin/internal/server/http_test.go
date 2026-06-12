@@ -132,6 +132,10 @@ func (fakeJobLogRepo) Create(context.Context, *biz.JobLog) (*biz.JobLog, error) 
 	return nil, nil
 }
 
+func (r fakeJobLogRepo) CreateRunningIfNoActive(ctx context.Context, jobLog *biz.JobLog) (*biz.JobLog, error) {
+	return r.Create(ctx, jobLog)
+}
+
 func (fakeJobLogRepo) Update(context.Context, *biz.JobLog) (*biz.JobLog, error) {
 	return nil, nil
 }

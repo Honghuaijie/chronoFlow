@@ -61,3 +61,24 @@ func TestCallbackUsecaseIgnoresFinalLog(t *testing.T) {
 		t.Fatalf("expected no write/update, written=%q updated=%+v", store.written, repo.updated)
 	}
 }
+
+func TestCallbackUsecaseRejectsMismatchedJobID(t *testing.T) {
+	now := time.Now()
+	repo := &fakeRunJobLogRepo{created: &JobLog{ID: 1, JobID: 10, Status: JobLogStatusRunning, StartTime: now}}
+	store := &fakeCallbackLogStore{}
+	uc := NewCallbackUsecase(repo, store, CallbackConfig{MaxLogBytes: 1024}, log.DefaultLogger)
+
+	_, err := uc.ApplyCallback(context.Background(), &CallbackInput{
+		LogID:      1,
+		JobID:      99,
+		Status:     JobLogStatusSuccess,
+		LogContent: "wrong job",
+		EndTime:    now.Add(time.Second),
+	})
+	if err == nil {
+		t.Fatal("expected mismatched job_id error, got nil")
+	}
+	if store.written != "" || repo.updated != nil {
+		t.Fatalf("expected no write/update, written=%q updated=%+v", store.written, repo.updated)
+	}
+}

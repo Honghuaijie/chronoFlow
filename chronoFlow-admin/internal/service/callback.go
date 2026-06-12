@@ -52,7 +52,7 @@ func (s *CallbackService) CallbackJobRun(ctx context.Context, req *v1.CallbackJo
 func (s *CallbackService) validateCallbackToken(ctx context.Context) error {
 	tr, ok := httpCtx.RequestFromServerContext(ctx)
 	if !ok {
-		return nil
+		return httpErrors.E(httpErrors.ErrInvalidToken)
 	}
 	if strings.TrimSpace(tr.Header.Get(callbackTokenHeader)) != s.callbackToken {
 		return httpErrors.E(httpErrors.ErrInvalidToken)

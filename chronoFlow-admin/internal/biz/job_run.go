@@ -42,6 +42,7 @@ type ExecutorRunner interface {
 type JobRunLogRepo interface {
 	GetRunningByJobID(context.Context, int64) (*JobLog, error)
 	Create(context.Context, *JobLog) (*JobLog, error)
+	CreateRunningIfNoActive(context.Context, *JobLog) (*JobLog, error)
 	GetByID(context.Context, int64) (*JobLog, error)
 	Update(context.Context, *JobLog) (*JobLog, error)
 }
@@ -116,7 +117,7 @@ func (uc *JobRunUsecase) RunJob(ctx context.Context, jobID int64, triggerType st
 	if err != nil {
 		return nil, err
 	}
-	created, err := uc.logRepo.Create(ctx, &JobLog{
+	created, err := uc.logRepo.CreateRunningIfNoActive(ctx, &JobLog{
 		JobID:           job.ID,
 		JobName:         job.Name,
 		ExecutorID:      executor.ID,
@@ -144,6 +145,7 @@ func (uc *JobRunUsecase) RunJob(ctx context.Context, jobID int64, triggerType st
 		CallbackURL:    uc.callbackURL(),
 		CallbackToken:  uc.config.CallbackToken,
 	}); err != nil {
+		uc.markLogFailed(ctx, created, err.Error())
 		return nil, err
 	}
 	return &JobRunResult{LogID: created.ID, Status: created.Status}, nil
@@ -174,9 +176,21 @@ func (uc *JobRunUsecase) KillJob(ctx context.Context, jobID int64) (*JobRunResul
 		return nil, err
 	}
 	if err := uc.runner.Kill(ctx, executor.Address, token, ExecutorKillRequest{JobID: jobID, LogID: jobLog.ID}); err != nil {
+		uc.markLogFailed(ctx, updated, err.Error())
 		return nil, err
 	}
 	return &JobRunResult{LogID: updated.ID, Status: updated.Status}, nil
+}
+
+func (uc *JobRunUsecase) markLogFailed(ctx context.Context, jobLog *JobLog, message string) {
+	if jobLog == nil {
+		return
+	}
+	now := time.Now()
+	jobLog.Status = JobLogStatusFailed
+	jobLog.EndTime = &now
+	jobLog.ErrorMessage = message
+	_, _ = uc.logRepo.Update(ctx, jobLog)
 }
 
 func (uc *JobRunUsecase) mustGetRunJob(ctx context.Context, id int64) (*Job, error) {

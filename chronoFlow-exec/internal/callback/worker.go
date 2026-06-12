@@ -67,6 +67,7 @@ func (w *Worker) retryOnce() {
 	}
 	for _, item := range items {
 		if w.isExpired(item.CreatedAt) {
+			_ = w.store.DeletePending(item.LogID)
 			continue
 		}
 		if err := w.client.Send(item); err != nil {

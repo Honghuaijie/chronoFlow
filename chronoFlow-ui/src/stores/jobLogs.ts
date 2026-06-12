@@ -7,6 +7,7 @@ import type { JobLogDetail, JobLogFilters, JobLogInfo } from '@/types/jobLog'
 
 interface JobLogsState {
   items: JobLogInfo[]
+  activeItems: JobLogInfo[]
   detail: JobLogDetail | null
   loading: boolean
   detailLoading: boolean
@@ -18,6 +19,7 @@ interface JobLogsState {
 export const useJobLogsStore = defineStore('jobLogs', {
   state: (): JobLogsState => ({
     items: [],
+    activeItems: [],
     detail: null,
     loading: false,
     detailLoading: false,
@@ -43,6 +45,13 @@ export const useJobLogsStore = defineStore('jobLogs', {
       } finally {
         this.loading = false
       }
+    },
+    async fetchActiveList() {
+      const [running, killing] = await Promise.all([
+        jobLogApi.listJobLogs({ page: 1, pageSize: 1000, status: 'running' }),
+        jobLogApi.listJobLogs({ page: 1, pageSize: 1000, status: 'killing' }),
+      ])
+      this.activeItems = [...running.items, ...killing.items]
     },
     async fetchDetail(id: string) {
       this.detailLoading = true

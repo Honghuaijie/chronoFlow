@@ -242,3 +242,36 @@ npm run build
 ```
 
 9. 验证结果：admin 和 exec 测试/构建通过；ui 构建通过，仅保留 Ant Design Vue 首包体积 warning。
+
+### 2026-06-12 review 问题修复
+
+1. 修复同任务并发运行窗口：Admin 新增 `CreateRunningIfNoActive`，data 层在事务内锁定任务行后检查 active 日志并创建 running 日志。
+2. 修复执行器下发失败后日志卡在 `running`：`RunJob` 创建日志后如果调用执行器失败，会把日志置为 `failed` 并记录错误信息。
+3. 修复 kill 下发失败后日志卡在 `killing`：调用执行器 kill 失败时将日志置为 `failed` 并记录错误信息。
+4. 修复 callback 可靠性校验：Admin callback 会校验 `job_id` 必须匹配日志所属任务。
+5. 修复 gRPC callback 鉴权绕过：非 HTTP request context 的 callback 请求现在会返回 invalid token。
+6. 修复 Exec pending callback 过期文件不清理：过期 pending 文件会被删除。
+7. 修复前端任务页运行状态推断：改为单独查询 `running` 和 `killing` 日志，不再用普通日志列表第一页 50 条推断。
+8. 已补充回归测试：
+   - `TestJobRunUsecaseRunMarksLogFailedWhenDispatchFails`
+   - `TestJobRunUsecaseKillMarksFailedWhenExecutorKillFails`
+   - `TestCallbackUsecaseRejectsMismatchedJobID`
+   - `TestCallbackServiceRejectsContextWithoutHTTPToken`
+   - `TestJobLogRepoCreateRunningIfNoActiveRejectsActiveJob`
+   - `TestWorkerDeletesExpiredPendingCallbacks`
+9. 已完成验证：
+
+```bash
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+go test ./internal/... -count=1
+go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
+
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+go test ./internal/... -count=1
+go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
+
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+npm run build
+```
+
+10. 已重启 admin/exec 并完成短任务冒烟：`fix-smoke-142926` 执行成功，日志 ID `9`，日志正文正常写入。

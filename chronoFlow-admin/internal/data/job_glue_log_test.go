@@ -179,3 +179,35 @@ func TestJobLogRepoCreateGetRunningAndUpdate(t *testing.T) {
 		t.Fatalf("unexpected updated log: %+v", updated)
 	}
 }
+
+func TestJobLogRepoCreateRunningIfNoActiveRejectsActiveJob(t *testing.T) {
+	data, _, _, jobLogRepo := newChronoReposForTest(t)
+	ctx := context.Background()
+	now := time.Now()
+	if err := data.DB(ctx).Create(&Job{ID: 1, ExecutorID: 2, Name: "daily", CronExpr: "0 0 1 * * *", TimeoutSeconds: 30, ScheduleStatus: biz.ScheduleStatusStopped}).Error; err != nil {
+		t.Fatalf("create job: %v", err)
+	}
+	createActive := func() (*biz.JobLog, error) {
+		return jobLogRepo.(interface {
+			CreateRunningIfNoActive(context.Context, *biz.JobLog) (*biz.JobLog, error)
+		}).CreateRunningIfNoActive(ctx, &biz.JobLog{
+			JobID:           1,
+			JobName:         "daily",
+			ExecutorID:      2,
+			ExecutorName:    "exec",
+			ExecutorAddress: "http://exec",
+			CronExpr:        "0 0 1 * * *",
+			TimeoutSeconds:  30,
+			GlueSnapshot:    "echo hello",
+			TriggerType:     biz.TriggerTypeManual,
+			Status:          biz.JobLogStatusRunning,
+			StartTime:       now,
+		})
+	}
+	if _, err := createActive(); err != nil {
+		t.Fatalf("first CreateRunningIfNoActive returned error: %v", err)
+	}
+	if _, err := createActive(); err == nil {
+		t.Fatal("expected second CreateRunningIfNoActive to reject active job")
+	}
+}

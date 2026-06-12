@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -62,6 +63,10 @@ func (r *fakeRunJobLogRepo) Create(_ context.Context, jobLog *JobLog) (*JobLog, 
 	return &cp, nil
 }
 
+func (r *fakeRunJobLogRepo) CreateRunningIfNoActive(ctx context.Context, jobLog *JobLog) (*JobLog, error) {
+	return r.Create(ctx, jobLog)
+}
+
 func (r *fakeRunJobLogRepo) GetByID(context.Context, int64) (*JobLog, error) {
 	if r.created != nil {
 		cp := *r.created
@@ -83,18 +88,20 @@ func (r *fakeRunJobLogRepo) Update(_ context.Context, jobLog *JobLog) (*JobLog, 
 type fakeExecutorRunner struct {
 	runReq  *ExecutorRunRequest
 	killReq *ExecutorKillRequest
+	runErr  error
+	killErr error
 }
 
 func (r *fakeExecutorRunner) Run(_ context.Context, _ string, _ string, req ExecutorRunRequest) error {
 	cp := req
 	r.runReq = &cp
-	return nil
+	return r.runErr
 }
 
 func (r *fakeExecutorRunner) Kill(_ context.Context, _ string, _ string, req ExecutorKillRequest) error {
 	cp := req
 	r.killReq = &cp
-	return nil
+	return r.killErr
 }
 
 type fakeCallbackLogStore struct {
@@ -153,6 +160,32 @@ func TestJobRunUsecaseRunRejectsWhenSameJobRunning(t *testing.T) {
 	}
 }
 
+func TestJobRunUsecaseRunMarksLogFailedWhenDispatchFails(t *testing.T) {
+	jobLogRepo := &fakeRunJobLogRepo{}
+	runner := &fakeExecutorRunner{runErr: errors.New("executor unavailable")}
+	uc := NewJobRunUsecase(
+		fakeRunJobRepo{job: &Job{ID: 1, ExecutorID: 2, Name: "daily", CronExpr: "0 0 1 * * *", TimeoutSeconds: 30}},
+		fakeRunGlueRepo{glue: &Glue{JobID: 1, Content: "echo hello"}},
+		fakeRunExecutorRepo{executor: &Executor{ID: 2, Name: "exec", Address: "http://exec", TokenCiphertext: "cipher"}},
+		jobLogRepo,
+		fakeTokenCipher{},
+		runner,
+		JobRunConfig{PublicBaseURL: "http://admin", CallbackToken: "callback"},
+		log.DefaultLogger,
+	)
+
+	_, err := uc.RunJob(context.Background(), 1, TriggerTypeManual)
+	if err == nil {
+		t.Fatal("expected dispatch error, got nil")
+	}
+	if jobLogRepo.updated == nil || jobLogRepo.updated.Status != JobLogStatusFailed {
+		t.Fatalf("expected created log marked failed, got %+v", jobLogRepo.updated)
+	}
+	if jobLogRepo.updated.EndTime == nil || jobLogRepo.updated.ErrorMessage == "" {
+		t.Fatalf("expected failed log end time and error message, got %+v", jobLogRepo.updated)
+	}
+}
+
 func TestJobRunUsecaseKillMarksKillingAndCallsExecutor(t *testing.T) {
 	now := time.Now()
 	jobLogRepo := &fakeRunJobLogRepo{running: &JobLog{ID: 9, JobID: 1, ExecutorID: 2, ExecutorAddress: "http://exec", Status: JobLogStatusRunning, StartTime: now}}
@@ -174,5 +207,32 @@ func TestJobRunUsecaseKillMarksKillingAndCallsExecutor(t *testing.T) {
 	}
 	if got.Status != JobLogStatusKilling || runner.killReq == nil || runner.killReq.LogID != 9 {
 		t.Fatalf("unexpected kill result=%+v req=%+v", got, runner.killReq)
+	}
+}
+
+func TestJobRunUsecaseKillMarksFailedWhenExecutorKillFails(t *testing.T) {
+	now := time.Now()
+	jobLogRepo := &fakeRunJobLogRepo{running: &JobLog{ID: 9, JobID: 1, ExecutorID: 2, ExecutorAddress: "http://exec", Status: JobLogStatusRunning, StartTime: now}}
+	runner := &fakeExecutorRunner{killErr: errors.New("kill failed")}
+	uc := NewJobRunUsecase(
+		fakeRunJobRepo{job: &Job{ID: 1, ExecutorID: 2, Name: "daily", CronExpr: "0 0 1 * * *", TimeoutSeconds: 30}},
+		fakeRunGlueRepo{glue: &Glue{JobID: 1, Content: "echo hello"}},
+		fakeRunExecutorRepo{executor: &Executor{ID: 2, Name: "exec", Address: "http://exec", TokenCiphertext: "cipher"}},
+		jobLogRepo,
+		fakeTokenCipher{},
+		runner,
+		JobRunConfig{PublicBaseURL: "http://admin", CallbackToken: "callback"},
+		log.DefaultLogger,
+	)
+
+	_, err := uc.KillJob(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected kill error, got nil")
+	}
+	if jobLogRepo.updated == nil || jobLogRepo.updated.Status != JobLogStatusFailed {
+		t.Fatalf("expected killing log marked failed, got %+v", jobLogRepo.updated)
+	}
+	if jobLogRepo.updated.EndTime == nil || jobLogRepo.updated.ErrorMessage == "" {
+		t.Fatalf("expected failed kill end time and error message, got %+v", jobLogRepo.updated)
 	}
 }

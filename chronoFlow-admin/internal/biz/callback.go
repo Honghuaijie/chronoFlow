@@ -62,6 +62,9 @@ func (uc *CallbackUsecase) ApplyCallback(ctx context.Context, input *CallbackInp
 	if jobLog == nil {
 		return nil, httpErrors.EWithMessage(httpErrors.ErrNotFound, "执行日志不存在")
 	}
+	if jobLog.JobID != input.JobID {
+		return nil, httpErrors.EWithMessage(httpErrors.ErrInvalidParam, "回调 job_id 与执行日志不匹配")
+	}
 	if !CanCallbackUpdateJobLogStatus(jobLog.Status) {
 		return &JobRunResult{LogID: jobLog.ID, Status: jobLog.Status}, nil
 	}

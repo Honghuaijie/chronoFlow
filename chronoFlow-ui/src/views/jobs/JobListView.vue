@@ -40,7 +40,7 @@ const executorOptions = computed(() =>
 )
 
 const activeJobIds = computed(() => {
-  return new Set(logsStore.items.filter((log) => isActiveLogStatus(log.status)).map((log) => log.jobId))
+  return new Set(logsStore.activeItems.filter((log) => isActiveLogStatus(log.status)).map((log) => log.jobId))
 })
 
 const modalTitle = computed(() => (editingId.value ? '编辑任务' : '新增任务'))
@@ -59,9 +59,7 @@ onBeforeUnmount(() => {
 })
 
 async function refreshActiveLogs() {
-  logsStore.setPage(1, 50)
-  logsStore.setFilters({})
-  await logsStore.fetchList()
+  await logsStore.fetchActiveList()
 }
 
 function resetForm() {
