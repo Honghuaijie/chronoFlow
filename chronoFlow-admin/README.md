@@ -1,157 +1,112 @@
-# 项目说明
+# ChronoFlow Admin
 
-## 目录说明
+调度器后端，负责 ChronoFlow 的任务管理、执行器管理、Cron 调度、执行日志元数据、日志文件存储、执行器健康检查、启动恢复和内部 callback 接口。
 
-- `api/<domain>/vN/*.proto`：proto 源文件
-- `api/all-pb-go/vN/*.pb.go`：proto 生成物
-- `cmd/chronoFlow-admin`：服务启动入口
-- `configs/`：基础配置和环境配置
-- `internal/biz`：业务用例和 repo 接口
-- `internal/data`：DB、事务和 repo 实现
-- `internal/service`：gRPC/HTTP service 实现
-- `internal/errors`：统一错误编码
-- `third_party/`：常用 proto 依赖
+## 职责边界
 
-## 开发流程
+- 连接 MySQL，并拥有 ChronoFlow 的业务表。
+- 保存执行器 token 的加密密文。
+- 调用执行器 `/run`、`/kill`、`/health`。
+- 接收执行器异步 callback。
+- 保存完整日志正文到本地文件目录，MySQL 只保存日志元数据。
+- 提供前端访问的 `/v1/public/*` 和 `/v1/admin/*` HTTP API。
 
-### 初始化工具
+不负责：
 
-```bash
-make init
+- 直接执行 Shell 脚本。
+- 连接执行器本地 pending callback 文件。
+- 执行器进程管理。
+
+## 默认端口
+
+| 协议 | 地址 |
+| --- | --- |
+| HTTP | `0.0.0.0:10003` |
+| gRPC | `0.0.0.0:11003` |
+
+## 前置依赖
+
+- Go 1.22 或更高版本。
+- MySQL 8.x 或兼容版本。
+
+默认数据库配置在 `configs/config.yaml`：
+
+```yaml
+database: chronoflow
+username: root
+password: root
 ```
 
-### 生成代码
+启动前创建数据库：
 
-```bash
-make config
-make api
-make wire
+```sql
+CREATE DATABASE IF NOT EXISTS chronoflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 本地运行
+## 本地启动
+
+```bash
+go run ./cmd/chronoFlow-admin -conf ./configs
+```
+
+也可以使用模板 Makefile：
 
 ```bash
 make run env=local
 ```
 
-### 运行测试
-
-```bash
-make test
-```
-
-如果只想运行 `biz` 层测试：
-
-```bash
-make test-biz
-```
-
-更详细的测试说明见根目录下的 `TESTING_GUIDE.md`。
-
-AI 生成代码时的强约束规范见根目录下的 `AI_CODING_RULES.md`。
-
-## GitHub Actions 镜像构建
-
-模板生成的新项目默认内置后端镜像构建工作流。
-
-- 工作流文件会生成到 `.github/workflows/build-backend-image.yml`
-- 推送到 `master` 分支后，会自动构建当前项目根目录的 `Dockerfile`
-- 镜像会推送到：
+默认管理员账号：
 
 ```text
-ghcr.io/<github_owner>/chronoFlow-admin
+admin / admin123
 ```
 
-- 标签规则默认包括：
-  - `latest`
-  - `master-<short-sha>`
+## 关键配置
 
-工作流 Summary 会直接输出：
+- `server.public_base_url`：执行器 callback 访问调度器的公开地址。
+- `security.jwt_secret`：JWT 签名密钥。
+- `security.token_encrypt_key`：执行器 token 加密密钥，必须是 32 字节。
+- `security.callback_token`：执行器回调使用的全局 token。
+- `security.admin_username` / `security.admin_password`：内置管理员账号。
+- `logs.data_dir`：日志正文文件目录。
+- `logs.max_log_bytes`：单次日志最大保存大小，默认 5MB。
+- `logs.retention_days`：日志保留天数，默认 30 天。
+- `scheduler.timezone`：Cron 时区，默认 `Asia/Shanghai`。
+- `executor.health_check_interval_seconds`：执行器健康检查间隔。
+- `recovery.startup_running_grace_seconds`：Admin 启动后等待恢复窗口。
+- `recovery.killing_timeout_seconds`：`killing` 状态超时时间。
 
-- 完整镜像名
-- 可复制部署命令，例如：
+配置文件中的 `${ENV:default}` 支持环境变量覆盖。
+
+## 主要接口
+
+公共接口：
+
+- `POST /v1/public/auth/login`
+
+后台接口：
+
+- `GET /v1/admin/auth/current`
+- `/v1/admin/executors/*`
+- `/v1/admin/jobs/*`
+- `/v1/admin/glues/*`
+- `/v1/admin/jobLogs/*`
+
+内部接口：
+
+- 执行器 callback 接口由执行器调用，使用 `X-Callback-Token` 鉴权。
+
+## 验证命令
 
 ```bash
-./desplay.sh ghcr.io/<github_owner>/chronoFlow-admin:master-xxxxxxx
+go test ./internal/... -count=1
+go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 ```
 
-使用前需要在 GitHub 仓库中确认：
+## 开发注意事项
 
-- `Settings -> Actions -> General -> Workflow permissions`
-- 选择 `Read and write permissions`
-
-支持环境：
-
-- `local`
-- `dev`
-- `test`
-- `prod`
-
-## 配置加载链路
-
-- 启动默认读取：`configs/config.yaml`
-- 传入 `-env` 时叠加读取：`configs/config-{env}.yaml`
-- 环境配置覆盖基础配置的同名字段
-
-默认示例：
-
-```bash
-make run env=local
-make run env=dev
-```
-
-## API 生成规则
-
-- proto 源目录：`api/<domain>/vN/*.proto`
-- 生成物目录：`api/all-pb-go/vN`
-- `go_package` 必须与生成目录一致
-
-例如：
-
-```proto
-option go_package = "chronoFlow-admin/api/all-pb-go/v1;v1";
-```
-
-如果后续新增 `api/user/v2/user.proto`，生成物必须落到 `api/all-pb-go/v2`，项目内部也应从 `api/all-pb-go/v2` 引用。
-
-## 示例接口
-
-- `POST /v1/users/create`
-- `GET /v1/users/list`
-- `GET /v1/users/get/{id}`
-- `POST /v1/users/update`
-- `POST /v1/users/delete`
-- `GET /health`
-- `GET /healthz`
-
-## 模板默认能力
-
-- `main.go` 直接创建 logger，不使用 `logger_provider.go`
-- 启动时默认设置 `Asia/Shanghai`
-- HTTP 默认启用 `Recovery + Validate + CORS + RequestLog`
-- gRPC 默认启用 `Recovery + RequestLog`
-- 错误响应统一输出 `code / message / data`
-- 成功响应示例统一输出 `code / message / data`，成功时 `code = 0`
-- 示例中请求参数校验放在 `service` 层，`biz` 层专注业务流程
-- 默认内置 GHCR 镜像构建 workflow，模板仓库本身不会执行该 workflow
-
-## 错误码规范
-
-- 统一错误码定义集中在 `internal/errors/codes.go`
-- 默认错误文案统一使用中文
-- 业务层优先通过 `errors.E(...)`、`errors.EWithMessage(...)` 返回错误
-- 未显式包装的普通错误会统一兜底为 `50000 / 服务内部错误`
-- 日志中统一记录业务错误码 `code` 和 HTTP 状态码 `http_code`
-
-常用示例：
-
-```go
-return nil, errors.E(errors.ErrInvalidID)
-return nil, errors.EWithMessage(errors.ErrMissingRequiredField, "name 和 email 不能为空")
-```
-
-扩展规则：
-
-- `40000-49999`：请求侧和业务侧错误
-- `50000-59999`：服务端、依赖、系统错误
-- 新项目新增业务域错误时，继续在 `internal/errors/codes.go` 中按号段追加
+- 模板中的 user 示例接口只作为写法参考，不属于 ChronoFlow 业务代码。
+- 不要把完整日志正文写入 MySQL。
+- 执行器 token 入库前必须加密。
+- 同一个任务运行中时，手动运行应返回“任务正在执行中”，不创建新日志。
+- 任务配置允许编辑，当前运行实例不受影响，新配置下次执行生效。

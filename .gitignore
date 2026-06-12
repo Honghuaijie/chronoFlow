@@ -1,0 +1,11 @@
+*.log
+*.out
+.DS_Store
+data/
+**/data/
+**/bin/
+**/dist/
+**/node_modules/
+**/openapi.yaml
+**/api/all-pb-go/
+**/cmd/**/wire_gen.go

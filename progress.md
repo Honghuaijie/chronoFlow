@@ -159,6 +159,14 @@ npm run build
 7. 已读取后端和前端 AI 编码规则，确认后端 proto-first 和前端 page/store/api 分层要求。
 8. 已读取 admin/exec 配置和 data 初始化，确认 exec 模板数据库连接需要作为强制改造点。
 9. 已完成三份技术方案校验：文件存在；占位符扫描无命中；UI 标题编号已修正；关键负向约束只出现在禁止项或契约提醒中。
+10. 已创建根目录中文版 README：`README.md`。
+11. 已创建根目录英文版 README：`README.en.md`。
+12. 已创建根目录测试与联调指南：`TESTING_GUIDE.md`。
+13. 已将 admin、exec 的 README 从模板说明改为 ChronoFlow 模块说明。
+14. 已为 admin、exec、ui 分别补充英文 README。
+15. 已将 admin、exec 的 TESTING_GUIDE 从模板测试说明改为 ChronoFlow 模块验证说明。
+16. 已补充根目录 `.gitignore`，并更新 admin、exec `.gitignore` 忽略本地 `data/`。
+17. 已确认 README/TESTING_GUIDE 中不再残留模板 `v1/users`、`UserUsecase` 等示例接口说明。
 
 ## 联调记录
 
@@ -208,3 +216,29 @@ go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
 npm run build
 ```
+
+### 2026-06-12 文档与提交前收尾
+
+1. 已补充项目级中英文 README。
+2. 已补充项目级测试与联调指南。
+3. 已补充 admin、exec、ui 模块 README，其中 admin/exec/ui 均有英文版。
+4. 已更新 admin、exec 模块测试指南。
+5. 已补充根目录 `.gitignore`，并确认本地日志、data、node_modules、dist、生成物会被忽略。
+6. 已将曾被跟踪的 `chronoFlow-admin.log`、`chronoFlow-exec.log` 从 git 索引移除，本地文件保留并由 `.gitignore` 忽略。
+7. 已执行文档残留扫描，未发现旧模板 user API 说明残留。
+8. 已完成提交前验证：
+
+```bash
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+go test ./internal/... -count=1
+go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
+
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+go test ./internal/... -count=1
+go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
+
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+npm run build
+```
+
+9. 验证结果：admin 和 exec 测试/构建通过；ui 构建通过，仅保留 Ant Design Vue 首包体积 warning。

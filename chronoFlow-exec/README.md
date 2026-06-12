@@ -1,157 +1,92 @@
-# 项目说明
+# ChronoFlow Exec
 
-## 目录说明
+执行器后端，负责接收调度器下发的执行请求，在 Linux 服务器上运行 Glue Shell，采集日志，终止进程组，并把执行结果异步回调给调度器。
 
-- `api/<domain>/vN/*.proto`：proto 源文件
-- `api/all-pb-go/vN/*.pb.go`：proto 生成物
-- `cmd/chronoFlow-exec`：服务启动入口
-- `configs/`：基础配置和环境配置
-- `internal/biz`：业务用例和 repo 接口
-- `internal/data`：DB、事务和 repo 实现
-- `internal/service`：gRPC/HTTP service 实现
-- `internal/errors`：统一错误编码
-- `third_party/`：常用 proto 依赖
+## 职责边界
 
-## 开发流程
+- 提供 `/health`、`/run`、`/kill`。
+- 使用 `X-Executor-Token` 校验调度器请求。
+- 按任务维度限制并发：同一个任务不能同时运行。
+- 使用 Shell 启动脚本，并尽量终止整个进程组。
+- 采集 stdout/stderr，最多保留 5MB。
+- 执行完成后写 pending callback 文件，并尝试回调调度器。
+- callback 失败时后台重试，默认保留 7 天。
 
-### 初始化工具
+不负责：
 
-```bash
-make init
-```
+- 连接 MySQL 或任何调度器数据库。
+- 保存任务定义、执行器定义、日志元数据。
+- Cron 调度。
 
-### 生成代码
+## 默认端口
 
-```bash
-make config
-make api
-make wire
-```
+| 协议 | 地址 |
+| --- | --- |
+| HTTP | `0.0.0.0:10004` |
+| gRPC | `0.0.0.0:11004` |
 
-### 本地运行
+## 本地启动
 
 ```bash
-make run env=local
+go run ./cmd/chronoFlow-exec -conf ./configs
 ```
 
-### 运行测试
-
-```bash
-make test
-```
-
-如果只想运行 `biz` 层测试：
-
-```bash
-make test-biz
-```
-
-更详细的测试说明见根目录下的 `TESTING_GUIDE.md`。
-
-AI 生成代码时的强约束规范见根目录下的 `AI_CODING_RULES.md`。
-
-## GitHub Actions 镜像构建
-
-模板生成的新项目默认内置后端镜像构建工作流。
-
-- 工作流文件会生成到 `.github/workflows/build-backend-image.yml`
-- 推送到 `master` 分支后，会自动构建当前项目根目录的 `Dockerfile`
-- 镜像会推送到：
+默认 token：
 
 ```text
-ghcr.io/<github_owner>/chronoFlow-exec
+change-me
 ```
 
-- 标签规则默认包括：
-  - `latest`
-  - `master-<short-sha>`
-
-工作流 Summary 会直接输出：
-
-- 完整镜像名
-- 可复制部署命令，例如：
+健康检查：
 
 ```bash
-./desplay.sh ghcr.io/<github_owner>/chronoFlow-exec:master-xxxxxxx
+curl -i http://127.0.0.1:10004/health \
+  -H 'X-Executor-Token: change-me'
 ```
 
-使用前需要在 GitHub 仓库中确认：
+## 关键配置
 
-- `Settings -> Actions -> General -> Workflow permissions`
-- 选择 `Read and write permissions`
+- `executor.name`：执行器名称。
+- `executor.token`：调度器访问执行器的 token。
+- `executor.data_dir`：执行器本地数据目录，用于 pending callback。
+- `executor.shell_path`：Shell 路径，默认 `/bin/bash`。
+- `executor.temp_dir`：临时脚本目录。
+- `executor.kill_grace_seconds`：先 SIGTERM 后 SIGKILL 的等待时间。
+- `executor.max_log_bytes`：单次执行最大日志内容，默认 5MB。
+- `callback.retry_interval_seconds`：pending callback 重试间隔。
+- `callback.pending_retention_days`：pending callback 保留天数，默认 7 天。
 
-支持环境：
+配置文件中的 `${ENV:default}` 支持环境变量覆盖。
 
-- `local`
-- `dev`
-- `test`
-- `prod`
+## Docker 与脚本挂载
 
-## 配置加载链路
-
-- 启动默认读取：`configs/config.yaml`
-- 传入 `-env` 时叠加读取：`configs/config-{env}.yaml`
-- 环境配置覆盖基础配置的同名字段
-
-默认示例：
+执行器可以跑在 Docker 容器里。推荐把宿主机脚本目录挂载进容器，然后在 Glue Shell 中调用。
 
 ```bash
-make run env=local
-make run env=dev
+docker run --rm \
+  -p 10004:10004 \
+  -v /opt/chronoflow/scripts:/scripts \
+  -v /opt/chronoflow/exec-data:/app/data \
+  chronoFlow-exec:latest
 ```
 
-## API 生成规则
+Glue 示例：
 
-- proto 源目录：`api/<domain>/vN/*.proto`
-- 生成物目录：`api/all-pb-go/vN`
-- `go_package` 必须与生成目录一致
-
-例如：
-
-```proto
-option go_package = "chronoFlow-exec/api/all-pb-go/v1;v1";
+```bash
+python3 /scripts/report.py
 ```
 
-如果后续新增 `api/user/v2/user.proto`，生成物必须落到 `api/all-pb-go/v2`，项目内部也应从 `api/all-pb-go/v2` 引用。
+## 验证命令
 
-## 示例接口
-
-- `POST /v1/users/create`
-- `GET /v1/users/list`
-- `GET /v1/users/get/{id}`
-- `POST /v1/users/update`
-- `POST /v1/users/delete`
-- `GET /health`
-- `GET /healthz`
-
-## 模板默认能力
-
-- `main.go` 直接创建 logger，不使用 `logger_provider.go`
-- 启动时默认设置 `Asia/Shanghai`
-- HTTP 默认启用 `Recovery + Validate + CORS + RequestLog`
-- gRPC 默认启用 `Recovery + RequestLog`
-- 错误响应统一输出 `code / message / data`
-- 成功响应示例统一输出 `code / message / data`，成功时 `code = 0`
-- 示例中请求参数校验放在 `service` 层，`biz` 层专注业务流程
-- 默认内置 GHCR 镜像构建 workflow，模板仓库本身不会执行该 workflow
-
-## 错误码规范
-
-- 统一错误码定义集中在 `internal/errors/codes.go`
-- 默认错误文案统一使用中文
-- 业务层优先通过 `errors.E(...)`、`errors.EWithMessage(...)` 返回错误
-- 未显式包装的普通错误会统一兜底为 `50000 / 服务内部错误`
-- 日志中统一记录业务错误码 `code` 和 HTTP 状态码 `http_code`
-
-常用示例：
-
-```go
-return nil, errors.E(errors.ErrInvalidID)
-return nil, errors.EWithMessage(errors.ErrMissingRequiredField, "name 和 email 不能为空")
+```bash
+go test ./internal/... -count=1
+go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 ```
 
-扩展规则：
+## 开发注意事项
 
-- `40000-49999`：请求侧和业务侧错误
-- `50000-59999`：服务端、依赖、系统错误
-- 新项目新增业务域错误时，继续在 `internal/errors/codes.go` 中按号段追加
+- 执行器不需要数据库，模板里的数据库初始化代码不能作为业务代码保留。
+- 模板中的 user 示例接口只作为写法参考，不属于 ChronoFlow 业务代码。
+- V1 只要求 Linux 服务器上的真实进程组 kill 语义。
+- `/run` 必须异步执行，不能依赖 HTTP request context 存活。
+- callback 结果应先落盘再发送，避免调度器短暂故障导致结果丢失。
