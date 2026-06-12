@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"chronoFlow-exec/internal/callback"
 	"chronoFlow-exec/internal/conf"
 	"chronoFlow-exec/internal/logger"
 
@@ -49,9 +50,12 @@ func main() {
 	if err := cfg.Scan(&bc); err != nil {
 		log.Fatalf("failed to scan config: %v", err)
 	}
+	if err := conf.ValidateExec(&bc); err != nil {
+		log.Fatalf("invalid exec config: %v", err)
+	}
 
 	appLogger := logger.NewLogger(Name, bc.Logging)
-	app, cleanup, err := wireApp(bc.Server, bc.Data, appLogger)
+	app, cleanup, err := wireApp(bc.Server, bc.Executor, bc.Callback, appLogger)
 	if err != nil {
 		log.Fatalf("failed to init app: %v", err)
 	}
@@ -85,13 +89,13 @@ func loadConfig(basePath, env string) (config.Config, error) {
 	return c, nil
 }
 
-func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
+func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, cw *callback.Worker) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
 		kratos.Version(Version),
 		kratos.Metadata(map[string]string{}),
 		kratos.Logger(logger),
-		kratos.Server(gs, hs),
+		kratos.Server(gs, hs, cw),
 	)
 }

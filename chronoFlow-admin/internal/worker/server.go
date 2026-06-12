@@ -66,6 +66,7 @@ func (s *Server) Start(ctx context.Context) error {
 	go s.runHealthLoop()
 	go s.runKillingTimeoutLoop()
 	go s.runLogCleanupLoop()
+	<-s.stop
 	return nil
 }
 

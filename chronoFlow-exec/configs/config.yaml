@@ -8,22 +8,19 @@ server:
     addr: 0.0.0.0:11004
     timeout: 30s
 
-data:
-  database:
-    driver: mysql
-    host: "${DB_HOST:127.0.0.1}"
-    port: "${DB_PORT:3306}"
-    username: "${DB_USER:root}"
-    password: "${DB_PASSWORD:root}"
-    database: "${DB_NAME:chronoflow}"
-    charset: utf8mb4
-    parseTime: true
-    loc: Local
-  redis:
-    network: tcp
-    addr: "${REDIS_ADDR:127.0.0.1:6379}"
-    read_timeout: 0.2s
-    write_timeout: 0.2s
+executor:
+  name: "${EXECUTOR_NAME:executor-01}"
+  token: "${EXECUTOR_TOKEN:change-me}"
+  data_dir: "${EXECUTOR_DATA_DIR:./data}"
+  shell_path: "${EXECUTOR_SHELL_PATH:/bin/bash}"
+  temp_dir: "${EXECUTOR_TEMP_DIR:./data/tmp}"
+  kill_grace_seconds: 5
+  max_log_bytes: 5242880
+
+callback:
+  retry_interval_seconds: 30
+  pending_retention_days: 7
+  request_timeout_seconds: 10
 
 logging:
   level: INFO

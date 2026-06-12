@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package executor.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "chronoFlow-exec/api/all-pb-go/v1;v1";
+
+service Executor {
+  rpc Health (HealthRequest) returns (HealthReply) {
+    option (google.api.http) = {
+      get: "/health"
+    };
+  }
+
+  rpc Run (RunRequest) returns (RunReply) {
+    option (google.api.http) = {
+      post: "/run"
+      body: "*"
+    };
+  }
+
+  rpc Kill (KillRequest) returns (KillReply) {
+    option (google.api.http) = {
+      post: "/kill"
+      body: "*"
+    };
+  }
+}
+
+message HealthRequest {}
+
+message HealthReply {
+  int32 code = 1;
+  string msg = 2;
+  message Data {
+    string status = 1;
+    string executor_name = 2;
+  }
+  Data data = 3;
+}
+
+message RunRequest {
+  int64 job_id = 1;
+  int64 log_id = 2;
+  string script = 3;
+  int32 timeout_seconds = 4;
+  string callback_url = 5;
+  string callback_token = 6;
+}
+
+message RunReply {
+  int32 code = 1;
+  string msg = 2;
+  message Data {
+    string status = 1;
+    int64 log_id = 2;
+  }
+  Data data = 3;
+}
+
+message KillRequest {
+  int64 job_id = 1;
+  int64 log_id = 2;
+}
+
+message KillReply {
+  int32 code = 1;
+  string msg = 2;
+  message Data {
+    string status = 1;
+    int64 log_id = 2;
+  }
+  Data data = 3;
+}
+

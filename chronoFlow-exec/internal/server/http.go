@@ -3,7 +3,6 @@ package server
 import (
 	v1 "chronoFlow-exec/api/all-pb-go/v1"
 	"chronoFlow-exec/internal/conf"
-	"chronoFlow-exec/internal/handler"
 	"chronoFlow-exec/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -13,12 +12,13 @@ import (
 	"github.com/gorilla/handlers"
 )
 
-func NewHTTPServer(c *conf.Server, userSvc *service.UserService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, executorConf *conf.Executor, executorSvc *service.ExecutorService, logger log.Logger) *http.Server {
 	opts := []http.ServerOption{
 		// 给kratos的http服务注册一个“统一错误处理函数”--只要业务层返回err，都会调用这个方法
 		http.ErrorEncoder(errorEncoder),
 		http.Middleware(
 			requestLogMiddleware(logger),
+			executorTokenMiddleware(executorConf),
 			recovery.Recovery(),
 			validate.Validator(),
 		),
@@ -43,9 +43,7 @@ func NewHTTPServer(c *conf.Server, userSvc *service.UserService, logger log.Logg
 	}
 
 	srv := http.NewServer(opts...)
-	v1.RegisterUserHTTPServer(srv, userSvc)
-	srv.Route("").GET("/health", handler.HealthCheckHandler)
-	srv.Route("").POST("/v1/users/avatarUpload", userSvc.AvatarUpload)
+	v1.RegisterExecutorHTTPServer(srv, executorSvc)
 	log.NewHelper(logger).Info("http routes registered")
 	return srv
 }

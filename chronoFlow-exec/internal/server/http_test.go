@@ -1,150 +1,63 @@
 package server
 
 import (
-	"bytes"
-	"context"
 	"io"
 	stdhttp "net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"chronoFlow-exec/internal/biz"
+	"chronoFlow-exec/internal/conf"
 	"chronoFlow-exec/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
 )
 
-type fakeUserRepo struct {
-	createFn func(context.Context, *biz.User) (*biz.User, error)
-}
-
-func (r fakeUserRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error) {
-	if r.createFn != nil {
-		return r.createFn(ctx, user)
-	}
-	return nil, nil
-}
-
-func (fakeUserRepo) GetByID(context.Context, int32) (*biz.User, error) {
-	return nil, nil
-}
-
-func (fakeUserRepo) List(context.Context) ([]*biz.User, error) {
-	return nil, nil
-}
-
-func (fakeUserRepo) Update(context.Context, *biz.User) (*biz.User, error) {
-	return nil, nil
-}
-
-func (fakeUserRepo) Delete(context.Context, int32) error {
-	return nil
-}
-
-type fakeTx struct{}
-
-func (fakeTx) ExecTx(ctx context.Context, fn func(context.Context) error) error {
-	return fn(ctx)
-}
-
-func newTestHTTPServer(repo fakeUserRepo) *httptest.Server {
-	logger := log.NewStdLogger(io.Discard)
-	uc := biz.NewUserUsecase(repo, fakeTx{}, logger)
-	userSvc := service.NewUserService(uc)
-	srv := NewHTTPServer(nil, userSvc, logger)
+func newTestHTTPServer() *httptest.Server {
+	executorConf := &conf.Executor{Name: "exec-test", Token: "executor-token"}
+	executorSvc := service.NewExecutorService(executorConf, nil, nil, nil)
+	srv := NewHTTPServer(nil, executorConf, executorSvc, log.NewStdLogger(io.Discard))
 	return httptest.NewServer(srv)
 }
 
-func TestHTTPCreateUser_MissingNameOrEmail(t *testing.T) {
-	ts := newTestHTTPServer(fakeUserRepo{})
-	defer ts.Close()
-
-	body := []byte(`{"name":"","email":"","phone":"123"}`)
-	resp, err := stdhttp.Post(ts.URL+"/v1/users/create", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
-	}
-
-	if resp.StatusCode != stdhttp.StatusBadRequest {
-		t.Fatalf("unexpected status code: got %d want %d", resp.StatusCode, stdhttp.StatusBadRequest)
-	}
-	if !strings.Contains(string(respBody), `"code":40001`) {
-		t.Fatalf("expected error code 40001, got body %s", string(respBody))
-	}
-	if !strings.Contains(string(respBody), "name 和 email 不能为空") {
-		t.Fatalf("expected message in body, got %s", string(respBody))
-	}
-}
-
-func TestHTTPCreateUser_Success(t *testing.T) {
-	now := time.Now()
-	ts := newTestHTTPServer(fakeUserRepo{
-		createFn: func(ctx context.Context, user *biz.User) (*biz.User, error) {
-			return &biz.User{
-				ID:        1,
-				Name:      user.Name,
-				Email:     user.Email,
-				Phone:     user.Phone,
-				CreatedAt: now,
-				UpdatedAt: now,
-			}, nil
-		},
-	})
-	defer ts.Close()
-
-	body := []byte(`{"name":"Alice","email":"alice@example.com","phone":"123"}`)
-	resp, err := stdhttp.Post(ts.URL+"/v1/users/create", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
-	}
-
-	if resp.StatusCode != stdhttp.StatusOK {
-		t.Fatalf("unexpected status code: got %d want %d", resp.StatusCode, stdhttp.StatusOK)
-	}
-	if !strings.Contains(string(respBody), `"code":0`) {
-		t.Fatalf("expected success code in body, got %s", string(respBody))
-	}
-	if !strings.Contains(string(respBody), `"message":"CreateUser success"`) {
-		t.Fatalf("expected success message in body, got %s", string(respBody))
-	}
-	if !strings.Contains(string(respBody), `"name":"Alice"`) {
-		t.Fatalf("expected response body to contain user name, got %s", string(respBody))
-	}
-}
-
-func TestHTTPHealth_Success(t *testing.T) {
-	ts := newTestHTTPServer(fakeUserRepo{})
+func TestHTTPHealthRequiresToken(t *testing.T) {
+	ts := newTestHTTPServer()
 	defer ts.Close()
 
 	resp, err := stdhttp.Get(ts.URL + "/health")
 	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
+		t.Fatalf("GET /health returned error: %v", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	if resp.StatusCode != stdhttp.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestHTTPHealthSuccess(t *testing.T) {
+	ts := newTestHTTPServer()
+	defer ts.Close()
+
+	req, err := stdhttp.NewRequest(stdhttp.MethodGet, ts.URL+"/health", nil)
 	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
+		t.Fatalf("NewRequest returned error: %v", err)
+	}
+	req.Header.Set("X-Executor-Token", "executor-token")
+	resp, err := stdhttp.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /health returned error: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll returned error: %v", err)
 	}
 
 	if resp.StatusCode != stdhttp.StatusOK {
-		t.Fatalf("unexpected status code: got %d want %d", resp.StatusCode, stdhttp.StatusOK)
+		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, string(body))
 	}
-	if !strings.Contains(string(respBody), `"status":"ok"`) {
-		t.Fatalf("expected health response body, got %s", string(respBody))
+	if !strings.Contains(string(body), `"status":"online"`) {
+		t.Fatalf("expected online body, got %s", string(body))
 	}
 }

@@ -8,8 +8,9 @@ import "google/protobuf/duration.proto";
 
 message Bootstrap {
   Server server = 1;
-  Data data = 2;
   Logging logging = 3;
+  Executor executor = 4;
+  Callback callback = 5;
 }
 
 message Server {
@@ -27,28 +28,6 @@ message Server {
   GRPC grpc = 2;
 }
 
-message Data {
-  message Database {
-    string driver = 1;
-    string host = 2;
-    string port = 3;
-    string username = 4;
-    string password = 5;
-    string database = 6;
-    string charset = 7;
-    bool parseTime = 8;
-    string loc = 9;
-  }
-  message Redis {
-    string network = 1;
-    string addr = 2;
-    google.protobuf.Duration read_timeout = 3;
-    google.protobuf.Duration write_timeout = 4;
-  }
-  Database database = 1;
-  Redis redis = 2;
-}
-
 message Logging {
   string level = 1;
   File file = 2;
@@ -60,4 +39,20 @@ message Logging {
     int32 maxAge = 5;
     bool compress = 6;
   }
+}
+
+message Executor {
+  string name = 1;
+  string token = 2;
+  string data_dir = 3;
+  string shell_path = 4;
+  string temp_dir = 5;
+  int32 kill_grace_seconds = 6;
+  int64 max_log_bytes = 7;
+}
+
+message Callback {
+  int32 retry_interval_seconds = 1;
+  int32 pending_retention_days = 2;
+  int32 request_timeout_seconds = 3;
 }
