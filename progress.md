@@ -275,3 +275,32 @@ npm run build
 ```
 
 10. 已重启 admin/exec 并完成短任务冒烟：`fix-smoke-142926` 执行成功，日志 ID `9`，日志正文正常写入。
+
+### 2026-06-12 第二轮轻量 review 和 UI 冒烟
+
+1. 已确认 `第一轮review` 提交后工作区干净。
+2. 已启动 ChronoFlow UI 到 `http://127.0.0.1:5174/`，避免占用已有 `5173` todo 前端。
+3. 已打开 `/jobs` 验证任务列表正常渲染。
+4. 已确认任务页 active 查询走独立接口：
+   - `/v1/admin/jobLogs/list?page=1&pageSize=1000&status=running`
+   - `/v1/admin/jobLogs/list?page=1&pageSize=1000&status=killing`
+5. 已确认浏览器控制台无业务错误。
+6. 已创建 `ui-active-smoke-144428` 长任务并手动运行，前端显示 `运行中`，运行按钮置灰，终止按钮可见。
+7. 已通过前端点击终止，任务行回到 `空闲`，运行按钮恢复。
+8. 已通过日志详情 API 确认日志 ID `10` 最终状态为 `killed`，错误信息为 `任务被终止`，日志正文只包含终止前输出。
+9. 已重新执行最终验证：
+
+```bash
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+go test ./internal/... -count=1
+go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
+
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+go test ./internal/... -count=1
+go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
+
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+npm run build
+```
+
+10. 验证结果：admin 和 exec 测试/构建通过；ui 构建通过，仅保留 Ant Design Vue 首包体积 warning。
