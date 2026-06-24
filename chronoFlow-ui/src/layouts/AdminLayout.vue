@@ -6,6 +6,7 @@ import {
   DatabaseOutlined,
   FileSearchOutlined,
   LogoutOutlined,
+  QuestionCircleOutlined,
   SettingOutlined,
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
@@ -52,6 +53,10 @@ function logout() {
         <a-menu-item key="/settings" @click="router.push('/settings')">
           <SettingOutlined />
           <span>设置</span>
+        </a-menu-item>
+        <a-menu-item key="/help" @click="router.push('/help')">
+          <QuestionCircleOutlined />
+          <span>使用说明</span>
         </a-menu-item>
       </a-menu>
     </a-layout-sider>

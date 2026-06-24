@@ -304,3 +304,25 @@ npm run build
 ```
 
 10. 验证结果：admin 和 exec 测试/构建通过；ui 构建通过，仅保留 Ant Design Vue 首包体积 warning。
+
+### 2026-06-12 前端使用说明菜单
+
+1. 已在 UI 左侧菜单新增“使用说明”入口。
+2. 已新增 `/help` 路由和 `HelpView` 页面。
+3. 使用说明覆盖：
+   - 快速开始。
+   - 默认端口、默认账号、默认执行器 Token。
+   - 任务运行、停止、终止、编辑生效规则。
+   - 日志存储和保留规则。
+   - Glue Shell 示例。
+   - Admin / Exec / UI 服务边界。
+   - JWT、X-Executor-Token、X-Callback-Token 鉴权关系。
+   - 常见问题排查。
+4. 已执行前端构建验证：
+
+```bash
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+npm run build
+```
+
+5. 已在浏览器打开 `http://127.0.0.1:5174/help`，页面正常渲染；控制台仅有 Vite debug 连接日志。

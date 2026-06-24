@@ -7,6 +7,7 @@ import JobListView from '@/views/jobs/JobListView.vue'
 import JobLogListView from '@/views/logs/JobLogListView.vue'
 import JobLogDetailView from '@/views/logs/JobLogDetailView.vue'
 import SettingsView from '@/views/settings/SettingsView.vue'
+import HelpView from '@/views/help/HelpView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -54,6 +55,12 @@ const router = createRouter({
           name: 'settings',
           component: SettingsView,
           meta: { title: '设置' },
+        },
+        {
+          path: 'help',
+          name: 'help',
+          component: HelpView,
+          meta: { title: '使用说明' },
         },
       ],
     },
