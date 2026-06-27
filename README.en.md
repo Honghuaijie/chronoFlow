@@ -1,31 +1,145 @@
 # ChronoFlow
 
-ChronoFlow is a lightweight internal scheduled job platform for a single team. V1 targets dozens of jobs, one scheduler, Linux executors, asynchronous callbacks, file-based log content, and a basic web console.
+ChronoFlow is a lightweight scheduled job platform for an internal single-team environment. It includes a scheduler backend, an executor backend, and a web console for Cron jobs, manual runs, Glue Shell scripts, async callbacks, kill operations, logs, and reports.
 
-## Project Layout
-
-```text
-chronoFlow/
-├── chronoFlow-admin/   # Scheduler backend. Owns MySQL, jobs, executors, log metadata, and scheduling.
-├── chronoFlow-exec/    # Executor backend. No database. Runs Shell, kills process groups, and callbacks results.
-├── chronoFlow-ui/      # Admin console. Vue 3 + Ant Design Vue.
-├── prd-v1.md           # V1 product requirements.
-├── task_plan.md        # Project plan.
-├── progress.md         # Development and integration progress.
-└── findings.md         # Notes, findings, and decisions.
-```
-
-## V1 Features
+## Features
 
 - Executor management: create, edit, delete, and heartbeat status.
 - Job management: create, edit, delete, start scheduling, stop scheduling, and manual run.
-- Glue Shell: save a Shell script for each job. The script may call Python scripts mounted on the host or inside a container.
-- Asynchronous execution: Admin dispatches a run request and returns immediately; Exec callbacks Admin after completion.
-- Per-job mutual exclusion: the same job cannot run concurrently; different jobs may run in parallel.
-- Kill running jobs: Admin asks Exec to kill the running process group. Log status moves from `running` to `killing`, then to `killed` or `failed`.
-- Log storage: MySQL stores metadata only. Full log content is stored as files on the Admin side.
-- Log console: list, filter, detail, Glue snapshot, and log content viewer.
-- Lightweight auth: a config-based admin account and JWT for `/v1/admin/*`.
+- Visual Cron picker for common schedules plus manual expressions.
+- Glue Shell scripts per job. Scripts can call Python or other files mounted into the executor container.
+- Async execution: Admin dispatches a run request; Exec callbacks Admin after completion.
+- Per-job mutual exclusion: the same job cannot run concurrently.
+- Kill running jobs by asking Exec to kill the process group.
+- Log storage: MySQL stores metadata only; full log content is stored as files.
+- Reports for job count, recent run count, executor count, success rate, and daily trend.
+
+## Quick Start
+
+ChronoFlow supports two Docker deployment modes.
+
+### Source Build Deployment
+
+Use this when you want to build images locally or modify the code.
+
+```bash
+git clone <your-repo-url> chronoflow
+cd chronoflow
+cp .env.example .env
+docker compose up -d --build
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173
+```
+
+Default account:
+
+```text
+admin / admin123
+```
+
+### Prebuilt Image Deployment
+
+Use this when the author has published images. Edit `.env`:
+
+```env
+CHRONOFLOW_ADMIN_IMAGE=ghcr.io/your-name/chronoflow-admin:latest
+CHRONOFLOW_EXEC_IMAGE=ghcr.io/your-name/chronoflow-exec:latest
+CHRONOFLOW_UI_IMAGE=ghcr.io/your-name/chronoflow-ui:latest
+```
+
+Start:
+
+```bash
+docker compose -f docker-compose.image.yml up -d
+```
+
+## Ports
+
+All host ports are configured in `.env`:
+
+```env
+CHRONOFLOW_UI_PORT=5173
+CHRONOFLOW_ADMIN_HTTP_PORT=10003
+CHRONOFLOW_ADMIN_GRPC_PORT=11003
+CHRONOFLOW_EXEC_HTTP_PORT=10004
+CHRONOFLOW_EXEC_GRPC_PORT=11004
+MYSQL_HOST_PORT=3306
+```
+
+## MySQL
+
+By default, Compose starts a MySQL 8.0 container:
+
+```env
+DB_HOST=mysql
+DB_PORT=3306
+DB_NAME=chronoflow
+DB_USER=chronoflow
+DB_PASSWORD=chronoflow123
+MYSQL_ROOT_PASSWORD=root123456
+```
+
+Admin auto-migrates tables on startup. `deploy/mysql/init/001-init.sql` provides the default database initialization SQL.
+
+For an external MySQL, edit `.env`:
+
+```env
+DB_HOST=host.docker.internal
+DB_PORT=3306
+DB_NAME=chronoflow
+DB_USER=root
+DB_PASSWORD=root
+```
+
+Create the database first:
+
+```sql
+CREATE DATABASE IF NOT EXISTS chronoflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Then start only app services:
+
+```bash
+docker compose up -d --build --no-deps admin exec ui
+```
+
+## First Executor
+
+With Docker Compose, Admin reaches Exec through the Docker network:
+
+```text
+Name: default-exec
+Address: http://chronoflow-exec:10004
+Token: default-exec-token
+```
+
+The token comes from `.env`:
+
+```env
+EXECUTOR_TOKEN=default-exec-token
+```
+
+## First Job
+
+Create a job, open the Glue editor, and save:
+
+```bash
+echo chronoflow-demo-start
+python3 /scripts/report.py
+echo chronoflow-demo-done
+```
+
+Run it manually and check the job log detail page.
+
+The default Compose file mounts:
+
+```text
+deploy/scripts -> /scripts
+```
 
 ## Architecture
 
@@ -37,190 +151,48 @@ UI -> Admin -> Exec
 ```
 
 - `chronoFlow-admin` is the only service that connects to MySQL.
-- `chronoFlow-exec` does not connect to MySQL and must not read or write Admin database tables.
-- Admin calls Exec with an executor-specific `X-Executor-Token`.
-- Exec callbacks Admin with the global `X-Callback-Token`.
-- If callback fails, Exec writes the pending callback to disk and keeps retrying in the background. Default retention is 7 days.
+- `chronoFlow-exec` does not connect to MySQL.
+- Admin calls Exec with `X-Executor-Token`.
+- Exec callbacks Admin with `X-Callback-Token`.
 
-## Default Ports
+## Development
 
-| Service | HTTP | gRPC |
-| --- | --- | --- |
-| Admin | `10003` | `11003` |
-| Exec | `10004` | `11004` |
-| UI | `5173`; Vite chooses another port if occupied | - |
-
-## Prerequisites
-
-- Go 1.22 or later.
-- Node.js 18 or later.
-- MySQL 8.x or a compatible database.
-- Linux for production executor process-group semantics. Basic HTTP integration can be tested locally on macOS.
-
-Default Admin MySQL config:
-
-```yaml
-host: 127.0.0.1
-port: 3306
-username: root
-password: root
-database: chronoflow
-```
-
-Create the database first:
-
-```sql
-CREATE DATABASE IF NOT EXISTS chronoflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-## Local Startup
-
-### 1. Start Admin
+Run modules separately:
 
 ```bash
 cd chronoFlow-admin
 go run ./cmd/chronoFlow-admin -conf ./configs
 ```
 
-Default admin account:
-
-```text
-username: admin
-password: admin123
-```
-
-### 2. Start Exec
-
 ```bash
 cd chronoFlow-exec
 go run ./cmd/chronoFlow-exec -conf ./configs
 ```
 
-Default executor token:
-
-```text
-change-me
-```
-
-### 3. Start UI
-
 ```bash
 cd chronoFlow-ui
 npm install
-npm run dev
-```
-
-The UI proxies API requests to:
-
-```text
-http://127.0.0.1:10003
-```
-
-Override it when needed:
-
-```bash
 VITE_API_PROXY_TARGET=http://127.0.0.1:10003 npm run dev
 ```
 
-## Minimal Integration Flow
-
-1. Open the UI: `http://127.0.0.1:5173/`. If the port is occupied, use the URL printed by Vite.
-2. Log in with `admin / admin123`.
-3. Create an executor:
-   - Name: `local-exec`
-   - Address: `http://127.0.0.1:10004`
-   - Token: `change-me`
-4. Create a job and select that executor.
-5. Open Glue editor for the job and save:
-
-```bash
-echo chronoflow-demo-start
-pwd
-echo chronoflow-demo-done
-```
-
-6. Click Run.
-7. Open the job log detail page and verify that status is `success` and log content is visible.
-
-## Verification Commands
-
-Admin:
-
-```bash
-cd chronoFlow-admin
-go test ./internal/... -count=1
-go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
-```
-
-Exec:
-
-```bash
-cd chronoFlow-exec
-go test ./internal/... -count=1
-go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
-```
-
-UI:
-
-```bash
-cd chronoFlow-ui
-npm run build
-```
-
-## Key Configuration
-
-Admin:
-
-- `security.admin_username` / `security.admin_password`: built-in admin account.
-- `security.jwt_secret`: JWT secret.
-- `security.token_encrypt_key`: executor token encryption key. Must be 32 bytes.
-- `security.callback_token`: global token for Exec-to-Admin callbacks.
-- `logs.data_dir`: directory for full log content files.
-- `logs.retention_days`: retention days for log metadata and files. Default is 30.
-- `scheduler.timezone`: Cron timezone. Default is `Asia/Shanghai`.
-
-Exec:
-
-- `executor.token`: token used by Admin when calling Exec.
-- `executor.data_dir`: directory for pending callback files.
-- `executor.shell_path`: Shell path. Default is `/bin/bash`.
-- `executor.max_log_bytes`: max log content per run. Default is 5 MB.
-- `callback.retry_interval_seconds`: pending callback retry interval.
-- `callback.pending_retention_days`: pending callback retention days. Default is 7.
-
-Environment variables override placeholders in config files.
-
-## Docker and Script Mounts
-
-V1 supports running Exec inside Docker. Put business scripts on the host and mount them into the executor container through a Docker volume.
-
-For local Docker debugging, run:
+The previous local debugging Compose file is still available:
 
 ```bash
 docker compose -f docker-compose.local.yml up -d --build --remove-orphans
 ```
 
-The local compose file does not start a new MySQL container. Admin connects to an existing MySQL exposed on the host `3306`, such as a `boke-mysql` container with `0.0.0.0:3306->3306/tcp`. See `DEPLOYMENT.md` for the full local debugging guide.
-
-Example:
+## Verification
 
 ```bash
-docker run --rm \
-  -p 10004:10004 \
-  -v /opt/chronoflow/scripts:/scripts \
-  -v /opt/chronoflow/exec-data:/app/data \
-  chronoFlow-exec:latest
+cd chronoFlow-admin && go test ./internal/... -count=1
+cd chronoFlow-exec && go test ./internal/... -count=1
+cd chronoFlow-ui && npm run build
 ```
 
-Glue Shell can call mounted Python scripts:
+## Production Notes
 
-```bash
-python3 /scripts/report.py
-```
-
-## Notes
-
-- Real process-group kill semantics are Linux-only.
-- Do not store full log content in MySQL. MySQL stores metadata only.
-- Exec does not need a database and should not connect to Admin's database.
-- Template user APIs are examples only and are not ChronoFlow business APIs.
+- Change the default admin password, JWT secret, callback token, and executor token.
+- `CHRONOFLOW_TOKEN_ENCRYPT_KEY` must be 32 bytes.
+- Real process-group kill semantics require Linux.
+- MySQL stores log metadata only; full log content is stored as files.
+- Exec does not need database configuration.

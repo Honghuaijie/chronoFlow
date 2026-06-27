@@ -167,6 +167,7 @@ npm run build
 15. 已将 admin、exec 的 TESTING_GUIDE 从模板测试说明改为 ChronoFlow 模块验证说明。
 16. 已补充根目录 `.gitignore`，并更新 admin、exec `.gitignore` 忽略本地 `data/`。
 17. 已确认 README/TESTING_GUIDE 中不再残留模板 `v1/users`、`UserUsecase` 等示例接口说明。
+18. 已补充开源部署方案：源码构建 `docker-compose.yml`、作者镜像 `docker-compose.image.yml`、`.env.example`、MySQL 初始化 SQL、UI Nginx 镜像和中英文快速部署文档。
 
 ## 联调记录
 

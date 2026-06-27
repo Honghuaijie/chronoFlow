@@ -1,11 +1,11 @@
 server:
   http:
     network: tcp
-    addr: 0.0.0.0:10003
+    addr: "0.0.0.0:${CHRONOFLOW_ADMIN_HTTP_PORT:10003}"
     timeout: 30s
   grpc:
     network: tcp
-    addr: 0.0.0.0:11003
+    addr: "0.0.0.0:${CHRONOFLOW_ADMIN_GRPC_PORT:11003}"
     timeout: 30s
   public_base_url: "${PUBLIC_BASE_URL:http://127.0.0.1:10003}"
 
