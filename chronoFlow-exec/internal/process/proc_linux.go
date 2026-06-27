@@ -27,11 +27,14 @@ func ProcessGroupExists(pgid int) bool {
 		if err != nil || pid <= 0 {
 			continue
 		}
-		currentPGID, err := readProcProcessGroupID(pid)
+		info, err := readProcStatInfo(pid)
 		if err != nil {
 			continue
 		}
-		if currentPGID == pgid {
+		if info.Zombie {
+			continue
+		}
+		if info.ProcessGroupID == pgid {
 			return true
 		}
 	}
@@ -57,9 +60,17 @@ func WaitProcessGroupGone(ctx context.Context, pgid int, interval time.Duration)
 }
 
 func readProcProcessGroupID(pid int) (int, error) {
-	b, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+	info, err := readProcStatInfo(pid)
 	if err != nil {
 		return 0, err
 	}
-	return parseProcStatProcessGroupID(string(b))
+	return info.ProcessGroupID, nil
+}
+
+func readProcStatInfo(pid int) (procStatInfo, error) {
+	b, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+	if err != nil {
+		return procStatInfo{}, err
+	}
+	return parseProcStat(string(b))
 }
