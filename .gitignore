@@ -1,6 +1,10 @@
 *.log
 *.out
 .DS_Store
+.env
+*.env
+!.env.example
+!*.env.example
 data/
 **/data/
 **/bin/
@@ -9,5 +13,3 @@ data/
 **/openapi.yaml
 **/api/all-pb-go/
 **/cmd/**/wire_gen.go
-deploy/local/*-data/
-deploy/local/*-logs/
