@@ -164,7 +164,6 @@ chronoFlow/
 ├── deploy/
 │   ├── docker-compose.yml       # 源码构建部署
 │   ├── docker-compose.image.yml # 作者镜像部署
-│   ├── docker-compose.local.yml # 本地开发调试部署
 │   ├── .env.example             # 部署配置模板
 │   ├── mysql/init/              # MySQL 初始化 SQL
 │   └── scripts/                 # 默认挂载到执行器的脚本目录
@@ -206,11 +205,11 @@ npm install
 VITE_API_PROXY_TARGET=http://127.0.0.1:10003 npm run dev
 ```
 
-你当前本地已有 MySQL 容器的调试方式仍可使用：
+如果你已有本机 MySQL，可以在 `deploy/.env` 中把 `DB_HOST` 改为 `host.docker.internal`，然后只启动应用服务：
 
 ```bash
 cd deploy
-docker compose -f docker-compose.local.yml up -d --build --remove-orphans
+docker compose up -d --build --no-deps admin exec ui
 ```
 
 ## 验证命令

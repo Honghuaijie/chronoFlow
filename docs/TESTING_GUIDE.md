@@ -11,7 +11,7 @@
 - MySQL：复用本机已有 Docker 容器 `boke-mysql`，端口 `3306`，状态 healthy。
 - Admin：`chronoflow-admin` Docker 容器，HTTP 端口 `10003`。
 - Exec：`chronoflow-exec` Docker 容器，HTTP 端口 `10004`。
-- UI：本地 Vite 开发服务 `http://127.0.0.1:5173`。
+- UI：Docker/Nginx 或本地 Vite 服务 `http://127.0.0.1:5173`。
 - 自动化测试数据后缀：`104240`。
 
 总体结论：
@@ -111,27 +111,32 @@ docker exec -it boke-mysql mysql -uroot -p
 CREATE DATABASE IF NOT EXISTS chronoflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-确认 `deploy/local/admin-conf/config.yaml` 中数据库账号密码正确：
-
-```yaml
-host: host.docker.internal
-port: "3306"
-username: root
-password: root
-database: chronoflow
-```
-
-### 2.3 启动后端容器
+复制部署配置，并确认 `deploy/.env` 中数据库账号密码正确：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow
-docker compose -f deploy/docker-compose.local.yml up -d --build --remove-orphans
+cd /Users/hhj/dev/codexDemo/chronoFlow/deploy
+cp .env.example .env
+```
+
+```env
+DB_HOST=host.docker.internal
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=root
+DB_NAME=chronoflow
+```
+
+### 2.3 启动容器
+
+```bash
+cd /Users/hhj/dev/codexDemo/chronoFlow/deploy
+docker compose up -d --build --no-deps admin exec ui
 ```
 
 确认容器状态：
 
 ```bash
-docker compose -f deploy/docker-compose.local.yml ps
+docker compose ps
 ```
 
 期望：
@@ -139,14 +144,10 @@ docker compose -f deploy/docker-compose.local.yml ps
 ```text
 chronoflow-admin   Up
 chronoflow-exec    Up
+chronoflow-ui      Up
 ```
 
-### 2.4 启动前端
-
-```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
-VITE_API_PROXY_TARGET=http://127.0.0.1:10003 npm run dev
-```
+### 2.4 打开前端
 
 打开：
 
@@ -782,7 +783,8 @@ docker stop chronoflow-exec
 恢复：
 
 ```bash
-docker compose -f deploy/docker-compose.local.yml up -d exec
+cd /Users/hhj/dev/codexDemo/chronoFlow/deploy
+docker compose up -d exec
 ```
 
 ### TC-ERROR-002 callback 失败后重试
@@ -803,7 +805,7 @@ docker compose -f deploy/docker-compose.local.yml up -d exec
 辅助查看：
 
 ```bash
-find deploy/local/exec-data/callbacks -type f
+docker volume inspect chronoflow_chronoflow-exec-data
 ```
 
 ### TC-ERROR-003 Admin 重启恢复 running 日志
@@ -897,8 +899,6 @@ git status --short
 - `node_modules/`
 - `dist/`
 - `/tmp/chronoflow-*`
-- `deploy/local/*-data/`
-- `deploy/local/*-logs/`
 
 可以提交：
 

@@ -176,11 +176,11 @@ npm install
 VITE_API_PROXY_TARGET=http://127.0.0.1:10003 npm run dev
 ```
 
-The previous local debugging Compose file is still available:
+If you already have a local MySQL, set `DB_HOST=host.docker.internal` in `deploy/.env`, then start only app services:
 
 ```bash
 cd deploy
-docker compose -f docker-compose.local.yml up -d --build --remove-orphans
+docker compose up -d --build --no-deps admin exec ui
 ```
 
 ## Verification
