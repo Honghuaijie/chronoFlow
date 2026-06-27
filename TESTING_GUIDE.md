@@ -2,6 +2,77 @@
 
 本文档用于完整验收 ChronoFlow V1 是否好用。推荐按顺序执行：先基础构建，再本地 Docker 联调，最后逐条跑业务用例。
 
+## 0. 本次实测结果
+
+测试时间：2026-06-27
+
+测试环境：
+
+- MySQL：复用本机已有 Docker 容器 `boke-mysql`，端口 `3306`，状态 healthy。
+- Admin：`chronoflow-admin` Docker 容器，HTTP 端口 `10003`。
+- Exec：`chronoflow-exec` Docker 容器，HTTP 端口 `10004`。
+- UI：本地 Vite 开发服务 `http://127.0.0.1:5173`。
+- 自动化测试数据后缀：`104240`。
+
+总体结论：
+
+- 主要业务链路通过：登录、执行器管理、任务管理、Glue、手动运行、定时调度、失败日志、callback 重试、日志文件存储、日志截断、Cron 可视化、下次运行时间展示均可用。
+- 发现 1 个失败项：`TC-ERROR-003 Admin 重启恢复 running 日志` 的实测结果和预期不一致。
+- 发现 2 个未完整验证项：`TC-KILL-002` 的残留进程检查受执行器容器缺少 `ps` 命令影响；`TC-UX-003` 未做完整多视口人工检查。
+- `TC-LOG-003` 自动脚本首次误判失败，原因是 `logSizeBytes` 返回为字符串；复核后确认 `logTruncated=true` 且大小为 `5242880`，按通过处理。
+
+| 用例 | 结果 | 备注 |
+| --- | --- | --- |
+| 2.1 已有 MySQL 容器 | PASS | `boke-mysql` 正常运行并映射 `3306`。 |
+| 2.2 创建数据库 | PASS | Admin 已成功连接并完成全链路数据写入。 |
+| 2.3 启动后端容器 | PASS | `chronoflow-admin`、`chronoflow-exec` 均正常运行。 |
+| 2.4 启动前端 | PASS | Vite 服务可访问，已完成浏览器登录和页面操作。 |
+| TC-BUILD-001 | PASS | Admin `go test ./internal/...` 和 `go build` 通过。 |
+| TC-BUILD-002 | PASS | Exec `go test ./internal/...` 和 `go build` 通过；Exec 未连接数据库。 |
+| TC-BUILD-003 | PASS | UI `npm run build` 通过，仅有 chunk size 提示。 |
+| TC-API-001 | PASS | Admin 登录返回 token。 |
+| TC-API-002 | PASS | Exec health 返回 online。 |
+| TC-API-003 | PASS | 错误 token 被拒绝。 |
+| TC-UI-001 | PASS | 浏览器登录成功，进入任务页，菜单可见。 |
+| TC-UI-002 | PASS | 错误密码不能进入后台。 |
+| TC-EXECUTOR-001 | PASS | 新增执行器成功。 |
+| TC-EXECUTOR-002 | PASS | token 错误时执行器检测为 offline。 |
+| TC-EXECUTOR-003 | PASS | 编辑执行器成功。 |
+| TC-CRON-001 | PASS | 每 5 分钟表达式和最近 5 次运行时间展示正常。 |
+| TC-CRON-002 | PASS | 每小时第 05 分钟表达式 `0 5 */1 * * *` 展示正常。 |
+| TC-CRON-003 | PASS | 每天固定时间 tab 可用，预览正常。 |
+| TC-CRON-004 | PARTIAL | 每周 tab 切换无异常；未逐项验证指定周几和时间组合。 |
+| TC-CRON-005 | PARTIAL | 每月 tab 切换无异常；未逐项验证指定日期和时间组合。 |
+| TC-CRON-006 | PASS | 手动输入 Cron 表达式可预览最近 5 次运行时间。 |
+| TC-CRON-007 | PASS | 后端拒绝非法 Cron，返回 `cron_expr 必须是 6 位 Cron 表达式`。 |
+| TC-JOB-001 | PASS | 新增任务成功。 |
+| TC-JOB-002 | PASS | 编辑任务成功。 |
+| TC-JOB-003 | PASS | 删除临时任务成功。 |
+| TC-GLUE-001 | PASS | Glue 保存和读取成功。 |
+| TC-GLUE-002 | PASS | Glue Shell 成功调用挂载目录中的 Python 脚本。 |
+| TC-RUN-001 | PASS | 手动运行成功，日志状态 success。 |
+| TC-RUN-002 | PASS | 脚本失败时记录 failed、exit code 和错误输出。 |
+| TC-RUN-003 | PASS | 同一任务运行中再次运行被拒绝，未生成新的运行日志。 |
+| TC-SCHEDULE-001 | PASS | 启动调度后按 Cron 生成运行日志。 |
+| TC-SCHEDULE-002 | PASS | 停止调度后不再新增 Cron 运行日志。 |
+| TC-KILL-001 | PASS | 长任务可终止，日志状态 killed。 |
+| TC-KILL-002 | PARTIAL | 状态变为 killed；执行器容器缺少 `ps`，未完整验证是否无残留子进程。 |
+| TC-LOG-001 | PASS | 日志列表和筛选可用。 |
+| TC-LOG-002 | PASS | 日志详情包含 Glue 快照和文件日志内容。 |
+| TC-LOG-003 | PASS | 日志超过 5MB 后截断，`logTruncated=true`，`logSizeBytes=5242880`。 |
+| TC-ERROR-001 | PASS | 执行器离线后运行任务失败。 |
+| TC-ERROR-002 | PASS | Admin 暂停期间 callback 失败，恢复后执行器重试成功。 |
+| TC-ERROR-003 | FAIL | 预期 running 日志恢复为 failed；实际 Admin 重启后 Exec 成功回调，日志为 success。需要确认需求语义或调整测试场景。 |
+| TC-UX-001 | PASS | 任务列表展示下次运行时间，说明列不再过窄。 |
+| TC-UX-002 | PASS | Cron 弹窗可用，浏览器控制台无 error。 |
+| TC-UX-003 | NOT RUN | 未执行完整窄屏、多视口响应式检查。 |
+
+失败和待确认项：
+
+- `TC-ERROR-003`：如果需求是“Admin 重启期间，只要执行器最终能回调成功，就应保留 success”，则当前实现合理，测试预期需要调整；如果需求是“Admin 重启时 running 一律恢复为 failed”，则当前实现需要修改。
+- `TC-KILL-002`：建议执行器镜像安装 `procps`，或补充基于 `/proc` 的残留进程检查，便于自动化验证进程组终止是否彻底。
+- `TC-UX-003`：建议后续用浏览器分别检查桌面、平板、手机宽度下的任务列表、Cron 弹窗、日志详情。
+
 ## 1. 测试范围
 
 本轮测试覆盖：
