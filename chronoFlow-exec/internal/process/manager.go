@@ -116,9 +116,20 @@ func (m *Manager) Kill(jobID int64, logID int64) error {
 	}
 	state.cancel()
 	if state.cmd != nil && state.cmd.Process != nil {
-		_ = syscall.Kill(-state.cmd.Process.Pid, syscall.SIGTERM)
-		time.Sleep(time.Duration(m.config.KillGraceSeconds) * time.Second)
-		_ = syscall.Kill(-state.cmd.Process.Pid, syscall.SIGKILL)
+		pgid := state.cmd.Process.Pid
+		_ = syscall.Kill(-pgid, syscall.SIGTERM)
+		graceCtx, cancel := context.WithTimeout(context.Background(), time.Duration(m.config.KillGraceSeconds)*time.Second)
+		err := WaitProcessGroupGone(graceCtx, pgid, 100*time.Millisecond)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		forceCtx, forceCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer forceCancel()
+		if err := WaitProcessGroupGone(forceCtx, pgid, 100*time.Millisecond); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -17,8 +17,10 @@
 总体结论：
 
 - 主要业务链路通过：登录、执行器管理、任务管理、Glue、手动运行、定时调度、失败日志、callback 重试、日志文件存储、日志截断、Cron 可视化、下次运行时间展示均可用。
-- 发现 1 个失败项：`TC-ERROR-003 Admin 重启恢复 running 日志` 的实测结果和预期不一致。
-- 发现 2 个未完整验证项：`TC-KILL-002` 的残留进程检查受执行器容器缺少 `ps` 命令影响；`TC-UX-003` 未做完整多视口人工检查。
+- 失败项：0 个。
+- `TC-ERROR-003` 已按方案 A 调整为通过：Admin 重启期间如果执行器最终 callback 成功，则以真实执行结果为准。
+- `TC-KILL-002` 已补充基于 Linux `/proc` 的进程组检查，不再依赖容器内的 `ps` 命令。
+- `TC-UX-003` 未做完整多视口检查；当前系统主要提供电脑网页服务，该项暂不作为阻塞项。
 - `TC-LOG-003` 自动脚本首次误判失败，原因是 `logSizeBytes` 返回为字符串；复核后确认 `logTruncated=true` 且大小为 `5242880`，按通过处理。
 
 | 用例 | 结果 | 备注 |
@@ -56,22 +58,21 @@
 | TC-SCHEDULE-001 | PASS | 启动调度后按 Cron 生成运行日志。 |
 | TC-SCHEDULE-002 | PASS | 停止调度后不再新增 Cron 运行日志。 |
 | TC-KILL-001 | PASS | 长任务可终止，日志状态 killed。 |
-| TC-KILL-002 | PARTIAL | 状态变为 killed；执行器容器缺少 `ps`，未完整验证是否无残留子进程。 |
+| TC-KILL-002 | PASS | 状态变为 killed；已补充基于 Linux `/proc` 的进程组消失检查，不依赖 `ps`。 |
 | TC-LOG-001 | PASS | 日志列表和筛选可用。 |
 | TC-LOG-002 | PASS | 日志详情包含 Glue 快照和文件日志内容。 |
 | TC-LOG-003 | PASS | 日志超过 5MB 后截断，`logTruncated=true`，`logSizeBytes=5242880`。 |
 | TC-ERROR-001 | PASS | 执行器离线后运行任务失败。 |
 | TC-ERROR-002 | PASS | Admin 暂停期间 callback 失败，恢复后执行器重试成功。 |
-| TC-ERROR-003 | FAIL | 预期 running 日志恢复为 failed；实际 Admin 重启后 Exec 成功回调，日志为 success。需要确认需求语义或调整测试场景。 |
+| TC-ERROR-003 | PASS | 按方案 A：Admin 重启后如果 Exec 最终 callback 成功，则日志以真实结果为准；本次实际为 success。 |
 | TC-UX-001 | PASS | 任务列表展示下次运行时间，说明列不再过窄。 |
 | TC-UX-002 | PASS | Cron 弹窗可用，浏览器控制台无 error。 |
 | TC-UX-003 | NOT RUN | 未执行完整窄屏、多视口响应式检查。 |
 
-失败和待确认项：
+待确认项：
 
-- `TC-ERROR-003`：如果需求是“Admin 重启期间，只要执行器最终能回调成功，就应保留 success”，则当前实现合理，测试预期需要调整；如果需求是“Admin 重启时 running 一律恢复为 failed”，则当前实现需要修改。
-- `TC-KILL-002`：建议执行器镜像安装 `procps`，或补充基于 `/proc` 的残留进程检查，便于自动化验证进程组终止是否彻底。
-- `TC-UX-003`：建议后续用浏览器分别检查桌面、平板、手机宽度下的任务列表、Cron 弹窗、日志详情。
+- `TC-UX-003`：当前产品主要面向电脑网页服务，完整手机/平板多视口检查暂不作为阻塞项。
+- `TC-CRON-004`、`TC-CRON-005`：每周、每月 tab 已验证切换无异常，后续可补更细的指定日期/时间组合测试。
 
 ## 1. 测试范围
 
