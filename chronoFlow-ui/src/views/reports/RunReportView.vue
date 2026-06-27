@@ -7,10 +7,12 @@ import {
   FileDoneOutlined,
   ReloadOutlined,
 } from '@ant-design/icons-vue'
+import dayjs from 'dayjs'
 import PageHeaderBar from '@/components/PageHeaderBar.vue'
 import * as executorApi from '@/api/executors'
 import * as jobApi from '@/api/jobs'
 import * as jobLogApi from '@/api/jobLogs'
+import type { JobLogInfo } from '@/types/jobLog'
 
 interface ReportStats {
   jobTotal: number
@@ -20,8 +22,17 @@ interface ReportStats {
   recentFailed: number
 }
 
+interface TrendPoint {
+  date: string
+  label: string
+  success: number
+  failed: number
+  running: number
+}
+
 const loading = ref(false)
 const loadedAt = ref('')
+const recentLogs = ref<JobLogInfo[]>([])
 const stats = ref<ReportStats>({
   jobTotal: 0,
   runTotal: 0,
@@ -32,6 +43,14 @@ const stats = ref<ReportStats>({
 
 const pieRadius = 70
 const pieCircumference = 2 * Math.PI * pieRadius
+const chartWidth = 760
+const chartHeight = 300
+const chartPadding = {
+  top: 26,
+  right: 20,
+  bottom: 42,
+  left: 48,
+}
 
 const cards = computed(() => [
   {
@@ -64,6 +83,70 @@ const successPercent = computed(() => {
 const failedPercent = computed(() => (recentFinishedTotal.value ? 100 - successPercent.value : 0))
 const successStroke = computed(() => (recentFinishedTotal.value ? pieCircumference * (stats.value.recentSuccess / recentFinishedTotal.value) : 0))
 const failedStroke = computed(() => (recentFinishedTotal.value ? pieCircumference - successStroke.value : 0))
+const trendPoints = computed<TrendPoint[]>(() => {
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = dayjs().subtract(6 - index, 'day')
+    return {
+      date: date.format('YYYY-MM-DD'),
+      label: date.format('MM-DD'),
+      success: 0,
+      failed: 0,
+      running: 0,
+    }
+  })
+  const byDate = new Map(days.map((item) => [item.date, item]))
+  recentLogs.value.forEach((log) => {
+    const date = dayjs(log.startTime || log.createdAt).format('YYYY-MM-DD')
+    const point = byDate.get(date)
+    if (!point) {
+      return
+    }
+    if (log.status === 'success') {
+      point.success += 1
+    } else if (log.status === 'failed') {
+      point.failed += 1
+    } else if (log.status === 'running' || log.status === 'killing') {
+      point.running += 1
+    }
+  })
+  return days
+})
+const trendMax = computed(() => {
+  const maxValue = Math.max(...trendPoints.value.flatMap((item) => [item.success, item.failed, item.running]), 0)
+  return Math.max(maxValue, 1)
+})
+const yTicks = computed(() => {
+  const max = trendMax.value
+  return [max, Math.round(max * 0.75), Math.round(max * 0.5), Math.round(max * 0.25), 0]
+})
+const plotWidth = computed(() => chartWidth - chartPadding.left - chartPadding.right)
+const plotHeight = computed(() => chartHeight - chartPadding.top - chartPadding.bottom)
+const trendTotal = computed(() => trendPoints.value.reduce((sum, item) => sum + item.success + item.failed + item.running, 0))
+
+function xForIndex(index: number): number {
+  if (trendPoints.value.length <= 1) {
+    return chartPadding.left
+  }
+  return chartPadding.left + (plotWidth.value / (trendPoints.value.length - 1)) * index
+}
+
+function yForValue(value: number): number {
+  return chartPadding.top + plotHeight.value - (value / trendMax.value) * plotHeight.value
+}
+
+function linePath(key: 'success' | 'failed' | 'running'): string {
+  return trendPoints.value
+    .map((item, index) => `${index === 0 ? 'M' : 'L'} ${xForIndex(index)} ${yForValue(item[key])}`)
+    .join(' ')
+}
+
+function areaPath(key: 'success' | 'failed' | 'running'): string {
+  const points = trendPoints.value.map((item, index) => `${index === 0 ? 'M' : 'L'} ${xForIndex(index)} ${yForValue(item[key])}`).join(' ')
+  const lastX = xForIndex(trendPoints.value.length - 1)
+  const firstX = xForIndex(0)
+  const bottomY = chartPadding.top + plotHeight.value
+  return `${points} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`
+}
 
 onMounted(() => {
   void refresh()
@@ -72,14 +155,15 @@ onMounted(() => {
 async function refresh() {
   loading.value = true
   try {
-    const [jobs, logs, executors] = await Promise.all([
+    const [jobs, logs, executors, latestLogs] = await Promise.all([
       jobApi.listJobs(),
       jobLogApi.listJobLogs({ page: 1, pageSize: 1 }),
       executorApi.listExecutors(),
+      jobLogApi.listJobLogs({ page: 1, pageSize: 100 }),
     ])
-    const recentLogs = await jobLogApi.listJobLogs({ page: 1, pageSize: 100 })
-    const recentSuccess = recentLogs.items.filter((item) => item.status === 'success').length
-    const recentFailed = recentLogs.items.filter((item) => item.status === 'failed').length
+    recentLogs.value = latestLogs.items
+    const recentSuccess = recentLogs.value.filter((item) => item.status === 'success').length
+    const recentFailed = recentLogs.value.filter((item) => item.status === 'failed').length
     stats.value = {
       jobTotal: jobs.total,
       runTotal: logs.total,
@@ -122,6 +206,49 @@ async function refresh() {
       </div>
 
       <div class="chart-panel">
+        <div class="trend-section">
+          <div class="chart-header">
+            <div>
+              <h2>日期分布图</h2>
+              <p>最近 7 天执行结果趋势，按日志开始时间统计。</p>
+            </div>
+            <div class="chart-total">
+              <span>样本记录</span>
+              <strong>{{ trendTotal }}</strong>
+            </div>
+          </div>
+          <div class="trend-legend">
+            <span><i class="legend-line success-line"></i>成功</span>
+            <span><i class="legend-line failed-line"></i>失败</span>
+            <span><i class="legend-line running-line"></i>进行中</span>
+          </div>
+          <div class="trend-wrap">
+            <svg class="trend-chart" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" role="img" aria-label="最近 7 天执行结果趋势图">
+              <g class="grid-lines">
+                <template v-for="(tick, tickIndex) in yTicks" :key="`${tick}-${tickIndex}`">
+                  <line
+                    :x1="chartPadding.left"
+                    :x2="chartWidth - chartPadding.right"
+                    :y1="yForValue(tick)"
+                    :y2="yForValue(tick)"
+                  />
+                  <text :x="chartPadding.left - 12" :y="yForValue(tick) + 4" text-anchor="end">{{ tick }}</text>
+                </template>
+              </g>
+              <path class="trend-area success-area" :d="areaPath('success')" />
+              <path class="trend-path success-path" :d="linePath('success')" />
+              <path class="trend-path failed-path" :d="linePath('failed')" />
+              <path class="trend-path running-path" :d="linePath('running')" />
+              <g v-for="(point, index) in trendPoints" :key="point.date">
+                <circle class="trend-dot success-dot-stroke" :cx="xForIndex(index)" :cy="yForValue(point.success)" r="4" />
+                <circle class="trend-dot failed-dot-stroke" :cx="xForIndex(index)" :cy="yForValue(point.failed)" r="4" />
+                <circle class="trend-dot running-dot-stroke" :cx="xForIndex(index)" :cy="yForValue(point.running)" r="4" />
+                <text class="axis-label" :x="xForIndex(index)" :y="chartHeight - 12" text-anchor="middle">{{ point.label }}</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
         <div class="chart-section">
           <div class="chart-header">
             <div>
@@ -186,6 +313,7 @@ async function refresh() {
           <a-descriptions-item label="任务数量">统计当前任务列表中的全部任务。</a-descriptions-item>
           <a-descriptions-item label="调度次数">统计执行日志总数，包含手动运行和 Cron 定时触发。</a-descriptions-item>
           <a-descriptions-item label="执行器数量">统计当前执行器列表中的全部执行器。</a-descriptions-item>
+          <a-descriptions-item label="日期分布图">统计最近 100 条执行日志中最近 7 天的 success、failed、running、killing 状态。</a-descriptions-item>
           <a-descriptions-item label="成功比例图">统计最近 100 条执行日志中状态为 success 和 failed 的记录。</a-descriptions-item>
           <a-descriptions-item label="最近刷新">{{ loadedAt || '-' }}</a-descriptions-item>
         </a-descriptions>
@@ -255,12 +383,16 @@ async function refresh() {
 }
 
 .chart-panel {
+  display: grid;
+  grid-template-columns: minmax(520px, 1.7fr) minmax(320px, 0.9fr);
+  gap: 24px;
   padding: 16px;
   background: #fff;
   border: 1px solid #d9e2f2;
   border-radius: 6px;
 }
 
+.trend-section,
 .chart-section {
   min-height: 300px;
 }
@@ -299,10 +431,110 @@ async function refresh() {
   line-height: 1.2;
 }
 
+.trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  margin: -6px 0 10px;
+  color: #334155;
+}
+
+.trend-legend span {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.legend-line {
+  display: inline-block;
+  width: 24px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.success-line {
+  background: #0ea66a;
+}
+
+.failed-line {
+  background: #d93f3f;
+}
+
+.running-line {
+  background: #f59e0b;
+}
+
+.trend-wrap {
+  width: 100%;
+  overflow: hidden;
+}
+
+.trend-chart {
+  width: 100%;
+  min-height: 260px;
+}
+
+.grid-lines line {
+  stroke: #d8e1ee;
+  stroke-width: 1;
+}
+
+.grid-lines text,
+.axis-label {
+  fill: #475569;
+  font-size: 13px;
+}
+
+.trend-area {
+  opacity: 0.32;
+}
+
+.success-area {
+  fill: #0ea66a;
+}
+
+.trend-path {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.success-path {
+  stroke: #0ea66a;
+}
+
+.failed-path {
+  stroke: #d93f3f;
+}
+
+.running-path {
+  stroke: #f59e0b;
+}
+
+.trend-dot {
+  fill: #fff;
+  stroke-width: 2;
+}
+
+.success-dot-stroke {
+  stroke: #0ea66a;
+}
+
+.failed-dot-stroke {
+  stroke: #d93f3f;
+}
+
+.running-dot-stroke {
+  stroke: #f59e0b;
+}
+
 .pie-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 360px) minmax(180px, 1fr);
-  gap: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   align-items: center;
 }
 
@@ -403,7 +635,7 @@ async function refresh() {
   }
 
   .pie-layout {
-    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .chart-header {
@@ -412,6 +644,12 @@ async function refresh() {
 
   .chart-total {
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 1120px) {
+  .chart-panel {
+    grid-template-columns: 1fr;
   }
 }
 </style>
