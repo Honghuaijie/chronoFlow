@@ -8,7 +8,7 @@
 
 测试环境：
 
-- MySQL：复用本机已有 Docker 容器 `boke-mysql`，端口 `3306`，状态 healthy。
+- MySQL：复用本机已有 Docker 容器 `your-mysql-container`，端口 `3306`，状态 healthy。
 - Admin：`chronoflow-admin` Docker 容器，HTTP 端口 `10003`。
 - Exec：`chronoflow-exec` Docker 容器，HTTP 端口 `10004`。
 - UI：Docker/Nginx 或本地 Vite 服务 `http://127.0.0.1:5173`。
@@ -25,7 +25,7 @@
 
 | 用例 | 结果 | 备注 |
 | --- | --- | --- |
-| 2.1 已有 MySQL 容器 | PASS | `boke-mysql` 正常运行并映射 `3306`。 |
+| 2.1 已有 MySQL 容器 | PASS | `your-mysql-container` 正常运行并映射 `3306`。 |
 | 2.2 创建数据库 | PASS | Admin 已成功连接并完成全链路数据写入。 |
 | 2.3 启动后端容器 | PASS | `chronoflow-admin`、`chronoflow-exec` 均正常运行。 |
 | 2.4 启动前端 | PASS | Vite 服务可访问，已完成浏览器登录和页面操作。 |
@@ -90,19 +90,19 @@
 确认你的 MySQL 容器正在运行，并映射宿主机 `3306`：
 
 ```bash
-docker ps | grep boke-mysql
+docker ps | grep your-mysql-container
 ```
 
 期望看到类似：
 
 ```text
-0.0.0.0:3306->3306/tcp   boke-mysql
+0.0.0.0:3306->3306/tcp   your-mysql-container
 ```
 
 ### 2.2 创建数据库
 
 ```bash
-docker exec -it boke-mysql mysql -uroot -p
+docker exec -it your-mysql-container mysql -uroot -p
 ```
 
 进入 MySQL 后执行：
@@ -114,7 +114,7 @@ CREATE DATABASE IF NOT EXISTS chronoflow DEFAULT CHARACTER SET utf8mb4 COLLATE u
 复制部署配置，并确认 `deploy/.env` 中数据库账号密码正确：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/deploy
+cd /path/to/chronoFlow/deploy
 cp .env.example .env
 ```
 
@@ -129,7 +129,7 @@ DB_NAME=chronoflow
 ### 2.3 启动容器
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/deploy
+cd /path/to/chronoFlow/deploy
 docker compose up -d --build
 ```
 
@@ -161,6 +161,8 @@ http://127.0.0.1:5173
 admin / admin123
 ```
 
+说明：这是本地测试默认账号。公开部署或生产环境请在 `deploy/.env` 中修改 `CHRONOFLOW_ADMIN_PASSWORD`。
+
 ## 3. 基础构建测试
 
 ### TC-BUILD-001 Admin 单元测试和构建
@@ -168,7 +170,7 @@ admin / admin123
 步骤：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+cd /path/to/chronoFlow/chronoFlow-admin
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 ```
@@ -183,7 +185,7 @@ go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 步骤：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+cd /path/to/chronoFlow/chronoFlow-exec
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 ```
@@ -199,7 +201,7 @@ go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 步骤：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+cd /path/to/chronoFlow/chronoFlow-ui
 npm run build
 ```
 
@@ -231,7 +233,7 @@ curl -sS -X POST http://127.0.0.1:10003/v1/public/auth/login \
 
 ```bash
 curl -i http://127.0.0.1:10004/health \
-  -H 'X-Executor-Token: local-exec-token'
+  -H 'X-Executor-Token: your-executor-token'
 ```
 
 预期：
@@ -261,7 +263,7 @@ curl -i http://127.0.0.1:10004/health \
 步骤：
 
 1. 打开前端页面。
-2. 输入 `admin / admin123`。
+2. 输入本地测试默认账号 `admin / admin123`，或你在 `deploy/.env` 中配置的管理员账号密码。
 3. 点击登录。
 
 预期：
@@ -295,7 +297,7 @@ curl -i http://127.0.0.1:10004/health \
 ```text
 名称：local-docker-exec
 地址：http://chronoflow-exec:10004
-Token：local-exec-token
+Token：your-executor-token
 说明：本地 Docker 执行器
 ```
 
@@ -783,7 +785,7 @@ docker stop chronoflow-exec
 恢复：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/deploy
+cd /path/to/chronoFlow/deploy
 docker compose up -d exec
 ```
 

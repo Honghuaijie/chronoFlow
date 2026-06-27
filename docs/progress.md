@@ -53,7 +53,7 @@
 ### 已验证
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+cd /path/to/chronoFlow/chronoFlow-admin
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 ```
@@ -94,7 +94,7 @@ go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 ### 已验证
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+cd /path/to/chronoFlow/chronoFlow-exec
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 ```
@@ -137,7 +137,7 @@ go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 ### 已验证
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+cd /path/to/chronoFlow/chronoFlow-ui
 npm run build
 ```
 
@@ -185,11 +185,11 @@ npm run build
 10. 本次联调验证命令覆盖：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+cd /path/to/chronoFlow/chronoFlow-exec
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+cd /path/to/chronoFlow/chronoFlow-admin
 go test ./internal/worker -count=1
 go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 ```
@@ -214,7 +214,7 @@ go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 16. 已再次验证前端构建通过：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+cd /path/to/chronoFlow/chronoFlow-ui
 npm run build
 ```
 
@@ -230,15 +230,15 @@ npm run build
 8. 已完成提交前验证：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+cd /path/to/chronoFlow/chronoFlow-admin
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+cd /path/to/chronoFlow/chronoFlow-exec
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+cd /path/to/chronoFlow/chronoFlow-ui
 npm run build
 ```
 
@@ -263,15 +263,15 @@ npm run build
 9. 已完成验证：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+cd /path/to/chronoFlow/chronoFlow-admin
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+cd /path/to/chronoFlow/chronoFlow-exec
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+cd /path/to/chronoFlow/chronoFlow-ui
 npm run build
 ```
 
@@ -292,15 +292,15 @@ npm run build
 9. 已重新执行最终验证：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
+cd /path/to/chronoFlow/chronoFlow-admin
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
+cd /path/to/chronoFlow/chronoFlow-exec
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+cd /path/to/chronoFlow/chronoFlow-ui
 npm run build
 ```
 
@@ -322,7 +322,7 @@ npm run build
 4. 已执行前端构建验证：
 
 ```bash
-cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+cd /path/to/chronoFlow/chronoFlow-ui
 npm run build
 ```
 
