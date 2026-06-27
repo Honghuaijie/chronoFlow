@@ -22,6 +22,7 @@ Source build deployment:
 git clone <your-repo-url> chronoflow
 cd chronoflow/deploy
 cp .env.example .env
+docker compose -f docker-compose.mysql.yml up -d
 docker compose up -d --build
 ```
 

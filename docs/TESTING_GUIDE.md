@@ -130,7 +130,7 @@ DB_NAME=chronoflow
 
 ```bash
 cd /Users/hhj/dev/codexDemo/chronoFlow/deploy
-docker compose up -d --build --no-deps admin exec ui
+docker compose up -d --build
 ```
 
 确认容器状态：

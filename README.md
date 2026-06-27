@@ -22,6 +22,7 @@ ChronoFlow 是一个面向内网单团队使用的轻量定时任务平台。它
 git clone <your-repo-url> chronoflow
 cd chronoflow/deploy
 cp .env.example .env
+docker compose -f docker-compose.mysql.yml up -d
 docker compose up -d --build
 ```
 

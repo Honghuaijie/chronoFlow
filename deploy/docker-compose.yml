@@ -1,30 +1,6 @@
 name: chronoflow
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: chronoflow-mysql
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
-      MYSQL_DATABASE: ${DB_NAME:-chronoflow}
-      MYSQL_USER: ${DB_USER:-chronoflow}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-chronoflow123}
-      TZ: ${TZ:-Asia/Shanghai}
-    ports:
-      - "${MYSQL_HOST_PORT:-3306}:3306"
-    volumes:
-      - chronoflow-mysql-data:/var/lib/mysql
-      - ./mysql/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-    restart: unless-stopped
-
   admin:
     build:
       context: ../chronoFlow-admin
@@ -55,10 +31,9 @@ services:
     volumes:
       - chronoflow-admin-data:/app/data
       - chronoflow-admin-logs:/logs
-    depends_on:
-      mysql:
-        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - chronoflow
 
   exec:
     build:
@@ -82,6 +57,8 @@ services:
       - chronoflow-exec-logs:/logs
       - ./scripts:/scripts:ro
     restart: unless-stopped
+    networks:
+      - chronoflow
 
   ui:
     build:
@@ -96,10 +73,15 @@ services:
     depends_on:
       - admin
     restart: unless-stopped
+    networks:
+      - chronoflow
 
 volumes:
-  chronoflow-mysql-data:
   chronoflow-admin-data:
   chronoflow-admin-logs:
   chronoflow-exec-data:
   chronoflow-exec-logs:
+
+networks:
+  chronoflow:
+    name: chronoflow

@@ -2,63 +2,80 @@
 
 本文档说明 ChronoFlow 的 Docker 部署方式、配置项、MySQL 初始化和常见网络场景。
 
-## 部署方式
+## 文件说明
 
-ChronoFlow 支持两种部署方式。
+```text
+deploy/
+├── docker-compose.mysql.yml   # 只启动 MySQL，有状态基础设施
+├── docker-compose.yml         # 启动 admin / exec / ui，源码构建镜像
+├── docker-compose.image.yml   # 启动 admin / exec / ui，使用作者发布镜像
+├── .env.example               # 配置模板，复制为 .env 后使用
+├── mysql/init/001-init.sql    # MySQL 初始化 SQL
+└── scripts/report.py          # 默认挂载到执行器容器的示例脚本
+```
 
-### 1. 源码构建部署
+## 快速部署
 
-适合开发者、本地改代码或内网构建镜像：
+### 1. 准备配置
 
 ```bash
 cp .env.example .env
+```
+
+生产环境请至少修改 `.env` 中的管理员密码、JWT Secret、Callback Token 和执行器 Token。
+
+### 2. 启动 MySQL
+
+如果你需要使用 compose 内置 MySQL，先启动：
+
+```bash
+docker compose -f docker-compose.mysql.yml up -d
+```
+
+如果你已有外部 MySQL，可以跳过本步骤，直接修改 `.env` 里的数据库连接信息。
+
+### 3. 启动应用
+
+源码构建部署：
+
+```bash
 docker compose up -d --build
 ```
 
-使用的文件：
-
-```text
-docker-compose.yml
-.env
-```
-
-### 2. 作者镜像部署
-
-适合普通用户直接使用已发布镜像：
-
-```bash
-cp .env.example .env
-```
-
-修改 `.env`：
-
-```env
-CHRONOFLOW_ADMIN_IMAGE=ghcr.io/your-name/chronoflow-admin:latest
-CHRONOFLOW_EXEC_IMAGE=ghcr.io/your-name/chronoflow-exec:latest
-CHRONOFLOW_UI_IMAGE=ghcr.io/your-name/chronoflow-ui:latest
-```
-
-启动：
+作者镜像部署：
 
 ```bash
 docker compose -f docker-compose.image.yml up -d
 ```
 
-使用的文件：
+打开：
 
 ```text
-docker-compose.image.yml
-.env
+http://127.0.0.1:5173
+```
+
+默认账号：
+
+```text
+admin / admin123
 ```
 
 ## 服务说明
 
-| 服务 | 说明 | 默认访问 |
-| --- | --- | --- |
-| `mysql` | MySQL 8.0，保存元数据 | `127.0.0.1:3306` |
-| `admin` | 调度器后端，连接 MySQL | `127.0.0.1:10003` |
-| `exec` | 执行器后端，不连接数据库 | `127.0.0.1:10004` |
-| `ui` | Nginx 托管的前端页面 | `127.0.0.1:5173` |
+| 服务 | 所在 compose | 说明 | 默认访问 |
+| --- | --- | --- | --- |
+| `mysql` | `docker-compose.mysql.yml` | MySQL 8.0，保存元数据 | `127.0.0.1:3306` |
+| `admin` | `docker-compose.yml` / `docker-compose.image.yml` | 调度器后端，连接 MySQL | `127.0.0.1:10003` |
+| `exec` | `docker-compose.yml` / `docker-compose.image.yml` | 执行器后端，不连接数据库 | `127.0.0.1:10004` |
+| `ui` | `docker-compose.yml` / `docker-compose.image.yml` | Nginx 托管的前端页面 | `127.0.0.1:5173` |
+
+这些 compose 共用显式 Docker 网络：
+
+```text
+chronoflow
+```
+
+因此应用容器可以通过 `DB_HOST=mysql` 访问内置 MySQL。
 
 ## 端口配置
 
@@ -89,7 +106,7 @@ http://chronoflow-exec:18004
 
 ## MySQL 初始化
 
-默认 compose 会启动 MySQL，并通过官方 MySQL 镜像环境变量创建数据库和用户：
+`docker-compose.mysql.yml` 会通过官方 MySQL 镜像环境变量创建数据库和用户：
 
 ```env
 DB_NAME=chronoflow
@@ -130,16 +147,16 @@ DB_HOST=192.168.1.20
 CREATE DATABASE IF NOT EXISTS chronoflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-然后只启动应用服务：
+然后跳过 `docker-compose.mysql.yml`，只启动应用：
 
 ```bash
-docker compose up -d --build --no-deps admin exec ui
+docker compose up -d --build
 ```
 
 镜像部署模式：
 
 ```bash
-docker compose -f docker-compose.image.yml up -d --no-deps admin exec ui
+docker compose -f docker-compose.image.yml up -d
 ```
 
 ## 执行器地址怎么填
@@ -185,7 +202,7 @@ volumes:
 
 ## 数据目录
 
-源码构建和镜像部署都使用 Docker volume：
+默认使用 Docker volume：
 
 ```text
 chronoflow-mysql-data
@@ -204,21 +221,35 @@ docker volume ls | grep chronoflow
 删除所有数据需谨慎：
 
 ```bash
+docker compose -f docker-compose.mysql.yml down -v
 docker compose down -v
 ```
 
 ## 常用命令
 
-启动：
+启动 MySQL：
+
+```bash
+docker compose -f docker-compose.mysql.yml up -d
+```
+
+启动源码构建应用：
 
 ```bash
 docker compose up -d --build
+```
+
+启动镜像部署应用：
+
+```bash
+docker compose -f docker-compose.image.yml up -d
 ```
 
 查看日志：
 
 ```bash
 docker compose logs -f admin exec ui
+docker compose -f docker-compose.mysql.yml logs -f mysql
 ```
 
 重启 Admin：
@@ -227,10 +258,16 @@ docker compose logs -f admin exec ui
 docker compose restart admin
 ```
 
-停止：
+停止应用：
 
 ```bash
 docker compose down
+```
+
+停止 MySQL：
+
+```bash
+docker compose -f docker-compose.mysql.yml down
 ```
 
 ## 健康检查
