@@ -1,67 +1,145 @@
-# ChronoFlow 测试与联调指南
+# ChronoFlow V1 测试用例
 
-本文档记录 ChronoFlow V1 的推荐验证方式。提交前至少应完成“基础验证”，发布前应完成“三端联调”和“部署验证”。
+本文档用于完整验收 ChronoFlow V1 是否好用。推荐按顺序执行：先基础构建，再本地 Docker 联调，最后逐条跑业务用例。
 
-## 基础验证
+## 1. 测试范围
 
-### Admin
+本轮测试覆盖：
+
+- Admin 后端：登录、执行器管理、任务管理、Glue、手动运行、定时运行、日志、终止任务。
+- Exec 后端：健康检查、脚本执行、Python 脚本调用、日志回调、进程组终止。
+- UI 前端：任务列表、执行器列表、Cron 可视化配置、下次运行时间、日志详情、使用说明。
+- 本地 Docker：Admin 和 Exec 容器联调，Admin 连接已有 MySQL Docker 容器。
+
+## 2. 前置条件
+
+### 2.1 已有 MySQL 容器
+
+确认你的 MySQL 容器正在运行，并映射宿主机 `3306`：
 
 ```bash
-cd chronoFlow-admin
+docker ps | grep boke-mysql
+```
+
+期望看到类似：
+
+```text
+0.0.0.0:3306->3306/tcp   boke-mysql
+```
+
+### 2.2 创建数据库
+
+```bash
+docker exec -it boke-mysql mysql -uroot -p
+```
+
+进入 MySQL 后执行：
+
+```sql
+CREATE DATABASE IF NOT EXISTS chronoflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+确认 `deploy/local/admin-conf/config.yaml` 中数据库账号密码正确：
+
+```yaml
+host: host.docker.internal
+port: "3306"
+username: root
+password: root
+database: chronoflow
+```
+
+### 2.3 启动后端容器
+
+```bash
+cd /Users/hhj/dev/codexDemo/chronoFlow
+docker compose -f docker-compose.local.yml up -d --build --remove-orphans
+```
+
+确认容器状态：
+
+```bash
+docker compose -f docker-compose.local.yml ps
+```
+
+期望：
+
+```text
+chronoflow-admin   Up
+chronoflow-exec    Up
+```
+
+### 2.4 启动前端
+
+```bash
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
+VITE_API_PROXY_TARGET=http://127.0.0.1:10003 npm run dev
+```
+
+打开：
+
+```text
+http://127.0.0.1:5173
+```
+
+默认账号：
+
+```text
+admin / admin123
+```
+
+## 3. 基础构建测试
+
+### TC-BUILD-001 Admin 单元测试和构建
+
+步骤：
+
+```bash
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-admin
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-admin-build ./cmd/chronoFlow-admin
 ```
 
-验证重点：
+预期：
 
-- 配置校验。
-- token 加密。
-- 日志文件存储。
-- job run / callback / kill 状态流转。
-- worker 生命周期。
+- 测试全部通过。
+- 构建成功。
 
-### Exec
+### TC-BUILD-002 Exec 单元测试和构建
+
+步骤：
 
 ```bash
-cd chronoFlow-exec
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-exec
 go test ./internal/... -count=1
 go build -o /tmp/chronoflow-exec-build ./cmd/chronoFlow-exec
 ```
 
-验证重点：
+预期：
 
-- 执行器不连接数据库。
-- `/run` 异步执行，不依赖 HTTP request context。
-- 同任务互斥。
-- 日志截断。
-- kill 进程组。
-- pending callback 落盘与重试。
+- 测试全部通过。
+- 构建成功。
+- Exec 不需要连接数据库。
 
-### UI
+### TC-BUILD-003 UI 构建
+
+步骤：
 
 ```bash
-cd chronoFlow-ui
-npm install
+cd /Users/hhj/dev/codexDemo/chronoFlow/chronoFlow-ui
 npm run build
 ```
 
-验证重点：
+预期：
 
-- TypeScript 类型检查。
-- Vue 模板编译。
-- API 字段映射。
-- 路由和页面基础渲染。
+- TypeScript 检查通过。
+- Vite 构建成功。
 
-## 本地三端联调
+## 4. API 冒烟测试
 
-### 1. 启动 Admin
+### TC-API-001 Admin 登录
 
-```bash
-cd chronoFlow-admin
-go run ./cmd/chronoFlow-admin -conf ./configs
-```
-
-确认：
+步骤：
 
 ```bash
 curl -sS -X POST http://127.0.0.1:10003/v1/public/auth/login \
@@ -69,68 +147,452 @@ curl -sS -X POST http://127.0.0.1:10003/v1/public/auth/login \
   -d '{"username":"admin","password":"admin123"}'
 ```
 
-### 2. 启动 Exec
+预期：
 
-```bash
-cd chronoFlow-exec
-go run ./cmd/chronoFlow-exec -conf ./configs
-```
+- 返回 `code=0`。
+- 返回 `data.token`。
 
-确认：
+### TC-API-002 Exec 健康检查
+
+步骤：
 
 ```bash
 curl -i http://127.0.0.1:10004/health \
-  -H 'X-Executor-Token: change-me'
+  -H 'X-Executor-Token: local-exec-token'
 ```
 
-### 3. 启动 UI
+预期：
+
+- HTTP 200。
+- 返回 `status=online`。
+- 返回 `executorName=local-docker-exec`。
+
+### TC-API-003 Exec token 错误
+
+步骤：
 
 ```bash
-cd chronoFlow-ui
-npm run dev
+curl -i http://127.0.0.1:10004/health \
+  -H 'X-Executor-Token: wrong-token'
 ```
 
-打开 Vite 输出的地址，默认通常是：
+预期：
+
+- 返回认证失败。
+- 不应返回 `status=online`。
+
+## 5. UI 登录和导航测试
+
+### TC-UI-001 登录成功
+
+步骤：
+
+1. 打开前端页面。
+2. 输入 `admin / admin123`。
+3. 点击登录。
+
+预期：
+
+- 登录成功。
+- 跳转到任务页面。
+- 左侧菜单可切换：任务、执行器、执行日志、设置、使用说明。
+
+### TC-UI-002 登录失败
+
+步骤：
+
+1. 输入错误密码。
+2. 点击登录。
+
+预期：
+
+- 页面提示登录失败。
+- 不进入后台页面。
+
+## 6. 执行器管理测试
+
+### TC-EXECUTOR-001 新增执行器
+
+步骤：
+
+1. 进入“执行器”页面。
+2. 点击“新增执行器”。
+3. 填写：
 
 ```text
-http://127.0.0.1:5173/
+名称：local-docker-exec
+地址：http://chronoflow-exec:10004
+Token：local-exec-token
+说明：本地 Docker 执行器
 ```
 
-如果端口被占用，以 Vite 控制台输出为准。
+4. 保存。
 
-## 联调用例
+预期：
 
-### 登录与列表
+- 保存成功。
+- 列表出现 `local-docker-exec`。
+- 等待健康检查后状态变为 `online`。
 
-1. 使用 `admin / admin123` 登录。
-2. 进入任务列表。
-3. 确认前端能读取 `/v1/admin/jobs/list`。
-4. 浏览器控制台不应有业务错误。
+注意：
 
-### 普通运行
+- 地址必须填 `http://chronoflow-exec:10004`，因为 Admin 容器通过 Docker 网络访问 Exec。
+- 从宿主机 curl 才使用 `http://127.0.0.1:10004`。
 
-1. 创建执行器：
-   - 地址：`http://127.0.0.1:10004`
-   - Token：`change-me`
-2. 创建任务。
-3. 保存 Glue：
+### TC-EXECUTOR-002 执行器 token 错误
+
+步骤：
+
+1. 新增或编辑一个执行器。
+2. 地址填 `http://chronoflow-exec:10004`。
+3. Token 填 `wrong-token`。
+4. 保存并等待约 30 秒。
+
+预期：
+
+- 健康检查失败。
+- 执行器状态变为 `offline`。
+
+### TC-EXECUTOR-003 编辑执行器
+
+步骤：
+
+1. 编辑 `local-docker-exec`。
+2. 修改说明。
+3. 保存。
+
+预期：
+
+- 保存成功。
+- 列表说明更新。
+- Token 未改错时，健康检查仍可恢复为 `online`。
+
+## 7. Cron 可视化配置测试
+
+### TC-CRON-001 每 5 分钟执行
+
+步骤：
+
+1. 新增任务或编辑任务。
+2. 打开 Cron 配置。
+3. 选择“分钟”。
+4. 间隔分钟填 `5`。
+
+预期：
+
+- 表达式为 `0 */5 * * * *`。
+- 说明为“每 5 分钟”。
+- 最近 5 次运行时间每次间隔 5 分钟。
+
+### TC-CRON-002 每小时第 05 分钟执行
+
+步骤：
+
+1. 打开 Cron 配置。
+2. 选择“小时”。
+3. 填写：
+
+```text
+间隔小时：1
+分：5
+秒：0
+```
+
+预期：
+
+- 表达式为 `0 5 */1 * * *`。
+- 说明为“每 1 小时的第 05 分钟”。
+- 最近 5 次运行时间类似 `10:05、11:05、12:05`。
+
+### TC-CRON-003 每天固定时间执行
+
+步骤：
+
+1. 打开 Cron 配置。
+2. 选择“日”。
+3. 填写：
+
+```text
+时：2
+分：30
+秒：0
+```
+
+预期：
+
+- 表达式为 `0 30 2 * * *`。
+- 说明为“每天 02:30:00”。
+- 最近 5 次运行时间每天一次。
+
+### TC-CRON-004 每周固定时间执行
+
+步骤：
+
+1. 打开 Cron 配置。
+2. 选择“周”。
+3. 选择 `周一`。
+4. 填写 `09:00:00`。
+
+预期：
+
+- 表达式为 `0 0 9 * * 1`。
+- 最近 5 次运行时间都在周一 09:00:00。
+
+### TC-CRON-005 每月固定日期执行
+
+步骤：
+
+1. 打开 Cron 配置。
+2. 选择“月”。
+3. 日期填 `1`。
+4. 填写 `08:00:00`。
+
+预期：
+
+- 表达式为 `0 0 8 1 * *`。
+- 最近 5 次运行时间都在每月 1 日 08:00:00。
+
+### TC-CRON-006 手动输入表达式
+
+步骤：
+
+1. 打开 Cron 配置。
+2. 选择“手动”。
+3. 输入：
+
+```text
+0 10,20,30 * * * *
+```
+
+预期：
+
+- 最近 5 次运行时间只出现在每小时第 10、20、30 分钟。
+- 点击 OK 后，任务表单中的 Cron 表达式同步为手动输入值。
+
+### TC-CRON-007 无效表达式
+
+步骤：
+
+1. 打开 Cron 配置。
+2. 选择“手动”。
+3. 输入：
+
+```text
+bad cron
+```
+
+预期：
+
+- 预览显示“无法计算”或“Cron 表达式需为 6 段”。
+- 保存任务时后端返回 Cron 表达式不合法。
+
+## 8. 任务管理测试
+
+### TC-JOB-001 新增任务
+
+步骤：
+
+1. 进入“任务”页面。
+2. 点击“新增任务”。
+3. 填写：
+
+```text
+任务名称：test-basic
+执行器：local-docker-exec
+Cron：0 */5 * * * *
+超时时间：3600
+说明：测试任务
+```
+
+4. 保存。
+
+预期：
+
+- 保存成功。
+- 任务列表出现 `test-basic`。
+- 调度状态为 `已停止`。
+- 执行状态为 `空闲`。
+- 说明列不会被挤成竖排。
+
+### TC-JOB-002 编辑任务
+
+步骤：
+
+1. 编辑 `test-basic`。
+2. 修改说明为 `测试任务-编辑后`。
+3. 保存。
+
+预期：
+
+- 保存成功。
+- 任务列表说明更新。
+- 如果当前有运行实例，新配置只对下次运行生效。
+
+### TC-JOB-003 删除任务
+
+步骤：
+
+1. 新建一个临时任务 `test-delete`。
+2. 点击删除。
+3. 确认删除。
+
+预期：
+
+- 删除成功。
+- 列表不再显示该任务。
+
+## 9. Glue Shell 测试
+
+### TC-GLUE-001 保存 Glue
+
+步骤：
+
+1. 在任务 `test-basic` 上点击 `Glue`。
+2. 输入：
 
 ```bash
-echo chronoflow-e2e-start
+echo chronoflow-glue-start
 pwd
-echo chronoflow-e2e-done
+echo chronoflow-glue-done
 ```
 
-4. 点击“运行”。
-5. 打开日志详情。
-6. 期望：
-   - 状态为 `success`。
-   - 日志正文包含 `chronoflow-e2e-done`。
-   - Glue 快照可见。
+3. 保存。
 
-### 终止运行中任务
+预期：
 
-1. 创建任务并保存 Glue：
+- 保存成功。
+- 关闭后再次打开 Glue，内容仍存在。
+
+### TC-GLUE-002 调用挂载 Python 脚本
+
+步骤：
+
+1. 在 Glue 中输入：
+
+```bash
+echo chronoflow-python-start
+python3 /scripts/report.py
+echo chronoflow-python-done
+```
+
+2. 保存。
+3. 手动运行任务。
+4. 查看日志详情。
+
+预期：
+
+- 状态为 `success`。
+- 日志正文包含：
+
+```text
+chronoflow-python-start
+chronoflow docker script ok
+chronoflow-python-done
+```
+
+## 10. 手动运行测试
+
+### TC-RUN-001 手动运行成功
+
+步骤：
+
+1. 确认任务 `test-basic` 已保存 Glue。
+2. 点击“运行”。
+3. 进入“执行日志”页面。
+4. 打开最新日志详情。
+
+预期：
+
+- 运行按钮下发成功。
+- 最新日志状态最终变为 `success`。
+- `exitCode=0`。
+- 日志详情显示 Glue 快照和脚本输出。
+
+### TC-RUN-002 脚本失败
+
+步骤：
+
+1. Glue 改为：
+
+```bash
+echo chronoflow-fail-start
+exit 2
+```
+
+2. 保存并运行。
+3. 查看日志详情。
+
+预期：
+
+- 状态为 `failed`。
+- `exitCode=2`。
+- 日志正文包含 `chronoflow-fail-start`。
+
+### TC-RUN-003 同任务互斥
+
+步骤：
+
+1. Glue 改为：
+
+```bash
+echo chronoflow-lock-start
+sleep 60
+echo chronoflow-lock-done
+```
+
+2. 保存并点击运行。
+3. 在任务仍运行中时，再次观察任务列表运行按钮。
+
+预期：
+
+- 同一个任务运行中时，“运行”按钮不可用。
+- 后端不应生成第二条运行日志。
+- 不同任务仍可并行运行。
+
+## 11. 定时调度测试
+
+### TC-SCHEDULE-001 启动调度
+
+步骤：
+
+1. Glue 改为：
+
+```bash
+echo chronoflow-schedule-start
+date
+echo chronoflow-schedule-done
+```
+
+2. Cron 设置为 `0 */1 * * * *`。
+3. 点击“启动”。
+
+预期：
+
+- 调度状态变为 `运行中`。
+- 任务列表显示“下次运行”。
+- 到达下次运行时间后，自动生成一条触发类型为 `cron` 的日志。
+- 日志状态为 `success`。
+
+### TC-SCHEDULE-002 停止调度
+
+步骤：
+
+1. 对运行中的调度点击“停止”。
+2. 等待超过一个 Cron 周期。
+
+预期：
+
+- 调度状态变为 `已停止`。
+- 不再自动生成新的定时日志。
+- 如果停止前已有运行实例，当前运行不受影响。
+
+## 12. 终止任务测试
+
+### TC-KILL-001 终止长任务
+
+步骤：
+
+1. Glue 改为：
 
 ```bash
 echo chronoflow-kill-before
@@ -138,59 +600,237 @@ sleep 120
 echo chronoflow-kill-after
 ```
 
-2. 点击“运行”。
-3. 打开日志详情，确认状态为 `running`。
-4. 点击“终止”。
-5. 期望：
-   - 状态最终变为 `killed`。
-   - 错误信息为 `任务被终止`。
-   - 日志正文包含 `chronoflow-kill-before`。
-   - 日志正文不包含 `chronoflow-kill-after`。
+2. 保存并运行。
+3. 日志或任务列表显示运行中后，点击“终止”。
+4. 查看日志详情。
 
-### 同任务互斥
+预期：
 
-1. 对一个正在运行的任务再次点击“运行”。
-2. 期望：
-   - 前端按钮置灰或后端返回“任务正在执行中”。
-   - 不创建新的执行日志。
+- 状态先进入 `killing`。
+- 最终变为 `killed`。
+- 错误信息为 `任务被终止`。
+- 日志正文包含 `chronoflow-kill-before`。
+- 日志正文不包含 `chronoflow-kill-after`。
 
-## 部署验证
+### TC-KILL-002 终止含子进程任务
 
-执行器 Docker 部署需要单独验证：
+步骤：
 
-1. 宿主机脚本目录通过 volume 挂载到执行器容器。
-2. Glue Shell 可以调用挂载目录中的 Python 脚本。
-3. 执行器 `data_dir` 挂载为持久目录。
-4. callback 失败后 pending 文件能保留并在恢复后重试。
-5. Linux 环境下 kill 能终止整个进程组。
-
-示例：
+1. Glue 改为：
 
 ```bash
-docker run --rm \
-  -p 10004:10004 \
-  -v /opt/chronoflow/scripts:/scripts \
-  -v /opt/chronoflow/exec-data:/app/data \
-  chronoFlow-exec:latest
+echo chronoflow-process-group-before
+sh -c "sleep 120" &
+wait
+echo chronoflow-process-group-after
 ```
 
-## 提交前检查
+2. 运行后点击终止。
+
+预期：
+
+- 任务最终变为 `killed`。
+- 子进程应被一并终止。
+- 不应残留持续运行的 `sleep 120`。
+
+可用命令辅助检查：
+
+```bash
+docker exec chronoflow-exec ps -ef | grep sleep
+```
+
+## 13. 日志测试
+
+### TC-LOG-001 日志列表
+
+步骤：
+
+1. 进入“执行日志”页面。
+2. 使用任务、状态、触发类型筛选。
+
+预期：
+
+- 日志列表正常展示。
+- 筛选条件生效。
+- 运行中和终止中任务能显示操作按钮。
+
+### TC-LOG-002 日志详情
+
+步骤：
+
+1. 打开一条成功日志。
+2. 查看元数据、Glue 快照、日志正文。
+
+预期：
+
+- 元数据完整。
+- Glue 快照与运行时保存的脚本一致。
+- 日志正文从文件读取，不依赖 MySQL 保存完整正文。
+
+### TC-LOG-003 日志截断
+
+步骤：
+
+1. Glue 改为大量输出：
+
+```bash
+for i in $(seq 1 200000); do
+  echo "line-$i xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+done
+```
+
+2. 运行并查看日志详情。
+
+预期：
+
+- 任务能结束。
+- 日志大小不超过配置限制。
+- 日志详情显示截断标记。
+
+## 14. 异常场景测试
+
+### TC-ERROR-001 执行器离线后运行任务
+
+步骤：
+
+1. 停止 Exec 容器：
+
+```bash
+docker stop chronoflow-exec
+```
+
+2. 等待约 30 秒。
+3. 手动运行任务。
+
+预期：
+
+- 执行器健康状态变为 `offline`。
+- 运行失败，并有明确错误提示。
+
+恢复：
+
+```bash
+docker compose -f docker-compose.local.yml up -d exec
+```
+
+### TC-ERROR-002 callback 失败后重试
+
+步骤：
+
+1. 运行一个短任务。
+2. 在任务运行期间临时停止 Admin 容器。
+3. 等待 Exec 生成 pending callback。
+4. 恢复 Admin。
+
+预期：
+
+- Exec 将待回调结果落盘。
+- Admin 恢复后，Exec 后台重试 callback。
+- 日志最终更新为正确状态。
+
+辅助查看：
+
+```bash
+find deploy/local/exec-data/callbacks -type f
+```
+
+### TC-ERROR-003 Admin 重启恢复 running 日志
+
+步骤：
+
+1. 运行一个长任务。
+2. 重启 Admin：
+
+```bash
+docker restart chronoflow-admin
+```
+
+3. 等待启动恢复逻辑完成。
+
+预期：
+
+- 如果执行结果未知，运行中日志被标记为 `failed`。
+- 错误信息为 `执行器重启或失联，执行结果未知`。
+
+## 15. 页面体验验收
+
+### TC-UX-001 任务列表可读性
+
+步骤：
+
+1. 创建说明较长的任务。
+2. 查看任务列表。
+
+预期：
+
+- 说明列不会挤成竖排。
+- 说明最多展示两行。
+- 鼠标悬浮可查看完整说明。
+- 操作按钮不与其他列重叠。
+
+### TC-UX-002 Cron 弹窗可读性
+
+步骤：
+
+1. 打开 Cron 配置。
+2. 切换分钟、小时、日、周、月、手动。
+3. 调整各输入值。
+
+预期：
+
+- 表达式实时变化。
+- 说明实时变化。
+- 最近 5 次运行时间实时变化。
+- 弹窗内容不溢出、不遮挡按钮。
+
+### TC-UX-003 响应式检查
+
+步骤：
+
+1. 浏览器切换到较窄宽度。
+2. 查看任务列表、弹窗、日志详情。
+
+预期：
+
+- 表格可横向滚动。
+- 弹窗内容仍可操作。
+- 文本不重叠。
+
+## 16. 测试完成标准
+
+全部通过时应满足：
+
+- Admin、Exec、UI 构建通过。
+- 本地 Docker 后端可启动。
+- UI 可登录。
+- 执行器健康检查正常。
+- 手动运行成功。
+- 定时调度成功。
+- 终止任务成功。
+- Glue 调 Python 脚本成功。
+- 日志列表和详情正确。
+- Cron 可视化配置可用，并能展示最近 5 次运行时间。
+- 任务列表下次运行时间、说明列展示正常。
+
+## 17. 提交前检查
 
 ```bash
 git status --short
 ```
 
-确认不要提交：
+不要提交：
 
 - `*.log`
 - `data/`
 - `node_modules/`
 - `dist/`
 - `/tmp/chronoflow-*`
+- `deploy/local/*-data/`
+- `deploy/local/*-logs/`
 
-确认需要提交：
+可以提交：
 
 - 源码。
 - README / TESTING_GUIDE。
 - 配置模板。
-- `package-lock.json`。
+- Docker 本地调试配置。
