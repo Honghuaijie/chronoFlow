@@ -1,0 +1,33 @@
+server:
+  http:
+    network: tcp
+    addr: 0.0.0.0:10004
+    timeout: 30s
+  grpc:
+    network: tcp
+    addr: 0.0.0.0:11004
+    timeout: 30s
+
+executor:
+  name: local-docker-exec
+  token: local-exec-token
+  data_dir: /app/data
+  shell_path: /bin/bash
+  temp_dir: /app/data/tmp
+  kill_grace_seconds: 5
+  max_log_bytes: 5242880
+
+callback:
+  retry_interval_seconds: 30
+  pending_retention_days: 7
+  request_timeout_seconds: 10
+
+logging:
+  level: INFO
+  file:
+    path: /logs
+    name: "chronoFlow-exec.log"
+    maxSize: 10
+    maxBackups: 5
+    maxAge: 30
+    compress: false

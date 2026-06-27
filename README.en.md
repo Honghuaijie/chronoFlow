@@ -194,6 +194,14 @@ Environment variables override placeholders in config files.
 
 V1 supports running Exec inside Docker. Put business scripts on the host and mount them into the executor container through a Docker volume.
 
+For local Docker debugging, run:
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build --remove-orphans
+```
+
+The local compose file does not start a new MySQL container. Admin connects to an existing MySQL exposed on the host `3306`, such as a `boke-mysql` container with `0.0.0.0:3306->3306/tcp`. See `DEPLOYMENT.md` for the full local debugging guide.
+
 Example:
 
 ```bash

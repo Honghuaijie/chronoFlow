@@ -194,6 +194,14 @@ Exec：
 
 V1 支持执行器跑在 Docker 容器中。推荐把业务脚本放在宿主机目录，并通过 Docker volume 挂载到执行器容器内。
 
+本地 Docker 调试可以直接使用：
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build --remove-orphans
+```
+
+本地 compose 不启动新的 MySQL 容器，Admin 默认连接宿主机 `3306` 上已有的 MySQL，例如已映射端口的 `boke-mysql`。详细步骤见 `DEPLOYMENT.md`。
+
 示例：
 
 ```bash

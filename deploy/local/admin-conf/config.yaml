@@ -1,0 +1,62 @@
+server:
+  http:
+    network: tcp
+    addr: 0.0.0.0:10003
+    timeout: 30s
+  grpc:
+    network: tcp
+    addr: 0.0.0.0:11003
+    timeout: 30s
+  public_base_url: http://chronoflow-admin:10003
+
+data:
+  database:
+    driver: mysql
+    host: host.docker.internal
+    port: "3306"
+    username: root
+    password: root
+    database: chronoflow
+    charset: utf8mb4
+    parseTime: true
+    loc: Local
+  redis:
+    network: tcp
+    addr: 127.0.0.1:6379
+    read_timeout: 0.2s
+    write_timeout: 0.2s
+
+logging:
+  level: INFO
+  file:
+    path: /logs
+    name: "chronoFlow-admin.log"
+    maxSize: 10
+    maxBackups: 5
+    maxAge: 30
+    compress: false
+
+scheduler:
+  timezone: Asia/Shanghai
+
+executor:
+  health_check_interval_seconds: 10
+  health_check_fail_threshold: 3
+  request_timeout_seconds: 10
+
+security:
+  jwt_secret: local-dev-jwt-secret
+  token_encrypt_key: "12345678901234567890123456789012"
+  callback_token: local-callback-token
+  admin_username: admin
+  admin_password: admin123
+
+logs:
+  data_dir: /app/data
+  max_log_bytes: 5242880
+  retention_days: 30
+  cleanup_cron: "0 0 3 * * *"
+
+recovery:
+  startup_running_grace_seconds: 120
+  killing_timeout_seconds: 60
