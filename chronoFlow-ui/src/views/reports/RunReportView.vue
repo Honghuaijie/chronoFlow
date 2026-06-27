@@ -32,7 +32,7 @@ interface TrendPoint {
 
 const loading = ref(false)
 const loadedAt = ref('')
-const recentLogs = ref<JobLogInfo[]>([])
+const reportLogs = ref<JobLogInfo[]>([])
 const hoveredTrendIndex = ref<number | null>(null)
 const stats = ref<ReportStats>({
   jobTotal: 0,
@@ -63,7 +63,7 @@ const cards = computed(() => [
   {
     title: '调度次数',
     value: stats.value.runTotal,
-    description: '所有手动和 Cron 触发产生的执行日志数',
+    description: '最近 7 天手动和 Cron 触发产生的执行日志数',
     icon: FileDoneOutlined,
   },
   {
@@ -96,7 +96,7 @@ const trendPoints = computed<TrendPoint[]>(() => {
     }
   })
   const byDate = new Map(days.map((item) => [item.date, item]))
-  recentLogs.value.forEach((log) => {
+  reportLogs.value.forEach((log) => {
     const date = dayjs(log.startTime || log.createdAt).format('YYYY-MM-DD')
     const point = byDate.get(date)
     if (!point) {
@@ -104,7 +104,7 @@ const trendPoints = computed<TrendPoint[]>(() => {
     }
     if (log.status === 'success') {
       point.success += 1
-    } else if (log.status === 'failed') {
+    } else if (isFailedLikeStatus(log.status)) {
       point.failed += 1
     } else if (log.status === 'running' || log.status === 'killing') {
       point.running += 1
@@ -186,21 +186,49 @@ onMounted(() => {
   void refresh()
 })
 
+function isInReportWindow(log: JobLogInfo, windowStart: dayjs.Dayjs): boolean {
+  const value = log.startTime || log.createdAt
+  return value ? !dayjs(value).isBefore(windowStart) : false
+}
+
+function isFailedLikeStatus(status: string): boolean {
+  return status === 'failed' || status === 'killed' || status === 'skipped'
+}
+
+async function listRecentWindowLogs(windowStart: dayjs.Dayjs): Promise<{ items: JobLogInfo[], total: number }> {
+  const pageSize = 100
+  let page = 1
+  let total = 0
+  const items: JobLogInfo[] = []
+  while (true) {
+    const data = await jobLogApi.listJobLogs({ page, pageSize })
+    total = data.total
+    items.push(...data.items.filter((item) => isInReportWindow(item, windowStart)))
+    const hasOlderLog = data.items.some((item) => !isInReportWindow(item, windowStart))
+    const loadedCount = page * pageSize
+    if (hasOlderLog || loadedCount >= data.total || data.items.length === 0) {
+      break
+    }
+    page += 1
+  }
+  return { items, total }
+}
+
 async function refresh() {
   loading.value = true
   try {
-    const [jobs, logs, executors, latestLogs] = await Promise.all([
+    const windowStart = dayjs().subtract(6, 'day').startOf('day')
+    const [jobs, logs, executors] = await Promise.all([
       jobApi.listJobs(),
-      jobLogApi.listJobLogs({ page: 1, pageSize: 1 }),
+      listRecentWindowLogs(windowStart),
       executorApi.listExecutors(),
-      jobLogApi.listJobLogs({ page: 1, pageSize: 100 }),
     ])
-    recentLogs.value = latestLogs.items
-    const recentSuccess = recentLogs.value.filter((item) => item.status === 'success').length
-    const recentFailed = recentLogs.value.filter((item) => item.status === 'failed').length
+    reportLogs.value = logs.items
+    const recentSuccess = reportLogs.value.filter((item) => item.status === 'success').length
+    const recentFailed = reportLogs.value.filter((item) => isFailedLikeStatus(item.status)).length
     stats.value = {
       jobTotal: jobs.total,
-      runTotal: logs.total,
+      runTotal: reportLogs.value.length,
       executorTotal: executors.total,
       recentSuccess,
       recentFailed,
@@ -253,7 +281,7 @@ async function refresh() {
           </div>
           <div class="trend-legend">
             <span><i class="legend-line success-line"></i>成功</span>
-            <span><i class="legend-line failed-line"></i>失败</span>
+            <span><i class="legend-line failed-line"></i>失败/终止</span>
             <span><i class="legend-line running-line"></i>进行中</span>
           </div>
           <div class="trend-wrap">
@@ -285,7 +313,7 @@ async function refresh() {
                   <rect class="trend-tooltip-box" width="156" height="96" rx="6" />
                   <text class="trend-tooltip-title" x="12" y="22">{{ hoveredTrendPoint.date }}</text>
                   <text class="trend-tooltip-success" x="12" y="46">成功：{{ hoveredTrendPoint.success }}</text>
-                  <text class="trend-tooltip-failed" x="12" y="66">失败：{{ hoveredTrendPoint.failed }}</text>
+                  <text class="trend-tooltip-failed" x="12" y="66">失败/终止：{{ hoveredTrendPoint.failed }}</text>
                   <text class="trend-tooltip-running" x="12" y="86">进行中：{{ hoveredTrendPoint.running }}</text>
                 </g>
               </g>
@@ -317,7 +345,7 @@ async function refresh() {
           <div class="chart-header">
             <div>
               <h2>最近执行结果</h2>
-              <p>统计最近 100 条执行日志中的成功与失败次数。</p>
+              <p>统计最近 7 天执行日志中的成功、失败与终止次数。</p>
             </div>
             <div class="chart-total">
               <span>完成记录</span>
@@ -359,7 +387,7 @@ async function refresh() {
               </div>
               <div class="legend-row">
                 <span class="legend-dot failed-dot"></span>
-                <span class="legend-label">失败</span>
+                <span class="legend-label">失败/终止</span>
                 <strong>{{ stats.recentFailed }}</strong>
                 <span class="legend-percent">{{ failedPercent }}%</span>
               </div>
@@ -375,10 +403,10 @@ async function refresh() {
         </div>
         <a-descriptions :column="1" bordered size="middle">
           <a-descriptions-item label="任务数量">统计当前任务列表中的全部任务。</a-descriptions-item>
-          <a-descriptions-item label="调度次数">统计执行日志总数，包含手动运行和 Cron 定时触发。</a-descriptions-item>
+          <a-descriptions-item label="调度次数">统计最近 7 天执行日志数，包含手动运行和 Cron 定时触发。</a-descriptions-item>
           <a-descriptions-item label="执行器数量">统计当前执行器列表中的全部执行器。</a-descriptions-item>
-          <a-descriptions-item label="日期分布图">统计最近 100 条执行日志中最近 7 天的 success、failed、running、killing 状态。</a-descriptions-item>
-          <a-descriptions-item label="成功比例图">统计最近 100 条执行日志中状态为 success 和 failed 的记录。</a-descriptions-item>
+          <a-descriptions-item label="日期分布图">统计最近 7 天执行日志；success 计为成功，failed/killed/skipped 计为失败/终止，running/killing 计为进行中。</a-descriptions-item>
+          <a-descriptions-item label="成功比例图">统计最近 7 天执行日志中成功与失败/终止的记录。</a-descriptions-item>
           <a-descriptions-item label="最近刷新">{{ loadedAt || '-' }}</a-descriptions-item>
         </a-descriptions>
       </div>
