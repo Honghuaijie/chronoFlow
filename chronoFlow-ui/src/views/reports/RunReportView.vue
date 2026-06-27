@@ -33,6 +33,7 @@ interface TrendPoint {
 const loading = ref(false)
 const loadedAt = ref('')
 const recentLogs = ref<JobLogInfo[]>([])
+const hoveredTrendIndex = ref<number | null>(null)
 const stats = ref<ReportStats>({
   jobTotal: 0,
   runTotal: 0,
@@ -122,6 +123,12 @@ const yTicks = computed(() => {
 const plotWidth = computed(() => chartWidth - chartPadding.left - chartPadding.right)
 const plotHeight = computed(() => chartHeight - chartPadding.top - chartPadding.bottom)
 const trendTotal = computed(() => trendPoints.value.reduce((sum, item) => sum + item.success + item.failed + item.running, 0))
+const hoveredTrendPoint = computed(() => {
+  if (hoveredTrendIndex.value === null) {
+    return null
+  }
+  return trendPoints.value[hoveredTrendIndex.value] || null
+})
 
 function xForIndex(index: number): number {
   if (trendPoints.value.length <= 1) {
@@ -146,6 +153,33 @@ function areaPath(key: 'success' | 'failed' | 'running'): string {
   const firstX = xForIndex(0)
   const bottomY = chartPadding.top + plotHeight.value
   return `${points} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`
+}
+
+function hoverX(index: number): number {
+  if (trendPoints.value.length <= 1) {
+    return chartPadding.left
+  }
+  const step = plotWidth.value / (trendPoints.value.length - 1)
+  if (index === 0) {
+    return chartPadding.left
+  }
+  return xForIndex(index) - step / 2
+}
+
+function hoverWidth(index: number): number {
+  if (trendPoints.value.length <= 1) {
+    return plotWidth.value
+  }
+  const step = plotWidth.value / (trendPoints.value.length - 1)
+  if (index === 0 || index === trendPoints.value.length - 1) {
+    return step / 2
+  }
+  return step
+}
+
+function tooltipX(index: number): number {
+  const width = 156
+  return Math.min(Math.max(xForIndex(index) - width / 2, chartPadding.left), chartWidth - chartPadding.right - width)
 }
 
 onMounted(() => {
@@ -239,11 +273,41 @@ async function refresh() {
               <path class="trend-path success-path" :d="linePath('success')" />
               <path class="trend-path failed-path" :d="linePath('failed')" />
               <path class="trend-path running-path" :d="linePath('running')" />
+              <g v-if="hoveredTrendPoint && hoveredTrendIndex !== null" class="trend-tooltip-layer">
+                <line
+                  class="hover-guide"
+                  :x1="xForIndex(hoveredTrendIndex)"
+                  :x2="xForIndex(hoveredTrendIndex)"
+                  :y1="chartPadding.top"
+                  :y2="chartPadding.top + plotHeight"
+                />
+                <g :transform="`translate(${tooltipX(hoveredTrendIndex)}, 16)`">
+                  <rect class="trend-tooltip-box" width="156" height="96" rx="6" />
+                  <text class="trend-tooltip-title" x="12" y="22">{{ hoveredTrendPoint.date }}</text>
+                  <text class="trend-tooltip-success" x="12" y="46">成功：{{ hoveredTrendPoint.success }}</text>
+                  <text class="trend-tooltip-failed" x="12" y="66">失败：{{ hoveredTrendPoint.failed }}</text>
+                  <text class="trend-tooltip-running" x="12" y="86">进行中：{{ hoveredTrendPoint.running }}</text>
+                </g>
+              </g>
               <g v-for="(point, index) in trendPoints" :key="point.date">
                 <circle class="trend-dot success-dot-stroke" :cx="xForIndex(index)" :cy="yForValue(point.success)" r="4" />
                 <circle class="trend-dot failed-dot-stroke" :cx="xForIndex(index)" :cy="yForValue(point.failed)" r="4" />
                 <circle class="trend-dot running-dot-stroke" :cx="xForIndex(index)" :cy="yForValue(point.running)" r="4" />
                 <text class="axis-label" :x="xForIndex(index)" :y="chartHeight - 12" text-anchor="middle">{{ point.label }}</text>
+              </g>
+              <g class="hover-zones">
+                <rect
+                  v-for="(_point, index) in trendPoints"
+                  :key="`hover-${index}`"
+                  class="hover-zone"
+                  :x="hoverX(index)"
+                  :y="chartPadding.top"
+                  :width="hoverWidth(index)"
+                  :height="plotHeight"
+                  @mouseenter="hoveredTrendIndex = index"
+                  @mousemove="hoveredTrendIndex = index"
+                  @mouseleave="hoveredTrendIndex = null"
+                />
               </g>
             </svg>
           </div>
@@ -529,6 +593,48 @@ async function refresh() {
 
 .running-dot-stroke {
   stroke: #f59e0b;
+}
+
+.hover-guide {
+  stroke: #94a3b8;
+  stroke-dasharray: 4 4;
+  stroke-width: 1.5;
+}
+
+.trend-tooltip-box {
+  fill: #fff;
+  stroke: #d9e2f2;
+  stroke-width: 1;
+  filter: drop-shadow(0 8px 18px rgb(15 23 42 / 14%));
+}
+
+.trend-tooltip-title {
+  fill: #172033;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trend-tooltip-success,
+.trend-tooltip-failed,
+.trend-tooltip-running {
+  font-size: 13px;
+}
+
+.trend-tooltip-success {
+  fill: #0ea66a;
+}
+
+.trend-tooltip-failed {
+  fill: #d93f3f;
+}
+
+.trend-tooltip-running {
+  fill: #b87500;
+}
+
+.hover-zone {
+  fill: transparent;
+  cursor: crosshair;
 }
 
 .pie-layout {
