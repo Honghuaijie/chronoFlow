@@ -15,12 +15,21 @@ import (
 
 const unknownResultMessage = "执行器重启或失联，执行结果未知"
 
-var ProviderSet = wire.NewSet(NewServer)
+var ProviderSet = wire.NewSet(
+	NewServer,
+	wire.Bind(new(JobRunner), new(*biz.JobRunUsecase)),
+)
+
+type JobRunner interface {
+	RunJob(context.Context, int64, string) (*biz.JobRunResult, error)
+}
 
 type Server struct {
 	executorConf *conf.Executor
 	recoveryConf *conf.Recovery
 	logsConf     *conf.Logs
+	jobRepo      biz.JobRepo
+	jobRunner    JobRunner
 	executorRepo biz.ExecutorRepo
 	logRepo      biz.JobLogMaintenanceRepo
 	cipher       biz.TokenCipher
@@ -35,6 +44,8 @@ func NewServer(
 	executorConf *conf.Executor,
 	recoveryConf *conf.Recovery,
 	logsConf *conf.Logs,
+	jobRepo biz.JobRepo,
+	jobRunner JobRunner,
 	executorRepo biz.ExecutorRepo,
 	logRepo biz.JobLogMaintenanceRepo,
 	cipher biz.TokenCipher,
@@ -47,6 +58,8 @@ func NewServer(
 		executorConf: executorConf,
 		recoveryConf: recoveryConf,
 		logsConf:     logsConf,
+		jobRepo:      jobRepo,
+		jobRunner:    jobRunner,
 		executorRepo: executorRepo,
 		logRepo:      logRepo,
 		cipher:       cipher,
@@ -62,11 +75,39 @@ func (s *Server) Start(ctx context.Context) error {
 	if s.scheduler != nil {
 		s.scheduler.Start()
 	}
+	if err := s.registerRunningJobs(ctx); err != nil {
+		return err
+	}
 	go s.runStartupRecovery()
 	go s.runHealthLoop()
 	go s.runKillingTimeoutLoop()
 	go s.runLogCleanupLoop()
 	<-s.stop
+	return nil
+}
+
+func (s *Server) registerRunningJobs(ctx context.Context) error {
+	if s.scheduler == nil || s.jobRepo == nil || s.jobRunner == nil {
+		return nil
+	}
+	jobs, err := s.jobRepo.List(ctx, 0)
+	if err != nil {
+		return err
+	}
+	for _, job := range jobs {
+		if job == nil || job.ScheduleStatus != biz.ScheduleStatusRunning {
+			continue
+		}
+		jobID := job.ID
+		cronExpr := job.CronExpr
+		if err := s.scheduler.Register(jobID, cronExpr, func(runCtx context.Context) error {
+			_, err := s.jobRunner.RunJob(runCtx, jobID, biz.TriggerTypeCron)
+			return err
+		}); err != nil {
+			return err
+		}
+		s.log.Infof("scheduled running job restored: job_id=%d cron=%s", jobID, cronExpr)
+	}
 	return nil
 }
 

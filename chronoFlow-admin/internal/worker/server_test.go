@@ -7,6 +7,7 @@ import (
 
 	"chronoFlow-admin/internal/biz"
 	"chronoFlow-admin/internal/conf"
+	"chronoFlow-admin/internal/scheduler"
 
 	"github.com/go-kratos/kratos/v2/log"
 )
@@ -70,6 +71,22 @@ func (r *fakeMaintenanceRepo) DeleteExpiredLogs(context.Context, int32) ([]strin
 	return nil, nil
 }
 
+type fakeJobRepo struct {
+	items []*biz.Job
+}
+
+func (r *fakeJobRepo) Create(context.Context, *biz.Job) (*biz.Job, error) { return nil, nil }
+func (r *fakeJobRepo) GetByID(context.Context, int64) (*biz.Job, error)   { return nil, nil }
+func (r *fakeJobRepo) List(context.Context, int64) ([]*biz.Job, error)    { return r.items, nil }
+func (r *fakeJobRepo) Update(context.Context, *biz.Job) (*biz.Job, error) { return nil, nil }
+func (r *fakeJobRepo) Delete(context.Context, int64) error                { return nil }
+
+type fakeJobRunner struct{}
+
+func (fakeJobRunner) RunJob(context.Context, int64, string) (*biz.JobRunResult, error) {
+	return &biz.JobRunResult{}, nil
+}
+
 func TestWorkerCheckExecutorsMarksOfflineAfterThreshold(t *testing.T) {
 	executorRepo := &fakeExecutorRepo{items: []*biz.Executor{{
 		ID:                 7,
@@ -83,6 +100,8 @@ func TestWorkerCheckExecutorsMarksOfflineAfterThreshold(t *testing.T) {
 		&conf.Executor{HealthCheckFailThreshold: 3},
 		&conf.Recovery{},
 		&conf.Logs{},
+		nil,
+		nil,
 		executorRepo,
 		maintenanceRepo,
 		fakeTokenCipher{},
@@ -100,5 +119,39 @@ func TestWorkerCheckExecutorsMarksOfflineAfterThreshold(t *testing.T) {
 	}
 	if maintenanceRepo.failedExecutorID != 7 {
 		t.Fatalf("expected active logs failed for executor 7, got %d", maintenanceRepo.failedExecutorID)
+	}
+}
+
+func TestWorkerRegistersRunningJobsOnStartup(t *testing.T) {
+	manager, err := scheduler.NewManager(&conf.Scheduler{Timezone: "Asia/Shanghai"})
+	if err != nil {
+		t.Fatalf("new scheduler manager: %v", err)
+	}
+	server := NewServer(
+		&conf.Executor{},
+		&conf.Recovery{},
+		&conf.Logs{},
+		&fakeJobRepo{items: []*biz.Job{
+			{ID: 10, CronExpr: "0 */5 * * * *", ScheduleStatus: biz.ScheduleStatusRunning},
+			{ID: 11, CronExpr: "0 */5 * * * *", ScheduleStatus: biz.ScheduleStatusStopped},
+		}},
+		fakeJobRunner{},
+		&fakeExecutorRepo{},
+		&fakeMaintenanceRepo{},
+		fakeTokenCipher{},
+		fakeHealthClient{},
+		nil,
+		manager,
+		log.DefaultLogger,
+	)
+
+	if err := server.registerRunningJobs(context.Background()); err != nil {
+		t.Fatalf("registerRunningJobs returned error: %v", err)
+	}
+	if !manager.Has(10) {
+		t.Fatalf("expected running job 10 to be registered")
+	}
+	if manager.Has(11) {
+		t.Fatalf("expected stopped job 11 to remain unregistered")
 	}
 }
