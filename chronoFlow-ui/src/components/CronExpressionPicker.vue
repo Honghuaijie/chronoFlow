@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { EditOutlined } from '@ant-design/icons-vue'
-import { describeCron, formatNextRunTime } from '@/utils/cron'
+import { describeCron, formatNextRunTimes } from '@/utils/cron'
 
 const props = defineProps<{
   value: string
@@ -54,7 +54,7 @@ const expression = computed(() => {
 })
 
 const summary = computed(() => describeCron(expression.value))
-const nextRun = computed(() => formatNextRunTime(expression.value))
+const nextRuns = computed(() => formatNextRunTimes(expression.value, 5))
 
 watch(
   () => props.value,
@@ -157,7 +157,10 @@ function applyExpression() {
         </div>
         <div>
           <span class="preview-label">下次运行</span>
-          <span>{{ nextRun }}</span>
+          <ol v-if="nextRuns.length" class="next-run-list">
+            <li v-for="item in nextRuns" :key="item">{{ item }}</li>
+          </ol>
+          <span v-else>无法计算</span>
         </div>
       </div>
     </a-modal>
@@ -194,6 +197,14 @@ function applyExpression() {
   display: inline-block;
   width: 72px;
   color: #64748b;
+}
+
+.next-run-list {
+  display: inline-grid;
+  gap: 4px;
+  padding-left: 20px;
+  margin: 0;
+  vertical-align: top;
 }
 
 @media (max-width: 640px) {

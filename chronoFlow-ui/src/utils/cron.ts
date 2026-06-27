@@ -148,9 +148,27 @@ export function getNextRunTime(expr: string, from = new Date()): Date | null {
   return null
 }
 
+export function getNextRunTimes(expr: string, count = 5, from = new Date()): Date[] {
+  const times: Date[] = []
+  let cursor = from
+  for (let index = 0; index < count; index += 1) {
+    const next = getNextRunTime(expr, cursor)
+    if (!next) {
+      break
+    }
+    times.push(next)
+    cursor = next
+  }
+  return times
+}
+
 export function formatNextRunTime(expr: string): string {
   const next = getNextRunTime(expr)
   return next ? dayjs(next).format('YYYY-MM-DD HH:mm:ss') : '无法计算'
+}
+
+export function formatNextRunTimes(expr: string, count = 5): string[] {
+  return getNextRunTimes(expr, count).map((item) => dayjs(item).format('YYYY-MM-DD HH:mm:ss'))
 }
 
 export function describeCron(expr: string): string {
