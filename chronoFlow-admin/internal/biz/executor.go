@@ -41,6 +41,7 @@ type UpdateExecutorInput struct {
 type ExecutorRepo interface {
 	Create(context.Context, *Executor) (*Executor, error)
 	GetByID(context.Context, int64) (*Executor, error)
+	GetByAddress(context.Context, string) (*Executor, error)
 	List(context.Context) ([]*Executor, error)
 	Update(context.Context, *Executor) (*Executor, error)
 	Delete(context.Context, int64) error
@@ -72,6 +73,9 @@ func (uc *ExecutorUsecase) CreateExecutor(ctx context.Context, input *CreateExec
 	if name == "" || address == "" || token == "" {
 		return nil, httpErrors.EWithMessage(httpErrors.ErrMissingRequiredField, "name、address 和 token 不能为空")
 	}
+	if err := uc.ensureAddressAvailable(ctx, address, 0); err != nil {
+		return nil, err
+	}
 	ciphertext, err := uc.cipher.Encrypt(token)
 	if err != nil {
 		return nil, err
@@ -100,6 +104,9 @@ func (uc *ExecutorUsecase) UpdateExecutor(ctx context.Context, input *UpdateExec
 	address := strings.TrimRight(strings.TrimSpace(input.Address), "/")
 	if name == "" || address == "" {
 		return nil, httpErrors.EWithMessage(httpErrors.ErrMissingRequiredField, "name 和 address 不能为空")
+	}
+	if err := uc.ensureAddressAvailable(ctx, address, existing.ID); err != nil {
+		return nil, err
 	}
 	existing.Name = name
 	existing.Address = address
@@ -137,4 +144,15 @@ func (uc *ExecutorUsecase) DeleteExecutor(ctx context.Context, id int64) error {
 		return httpErrors.E(httpErrors.ErrInvalidID)
 	}
 	return uc.repo.Delete(ctx, id)
+}
+
+func (uc *ExecutorUsecase) ensureAddressAvailable(ctx context.Context, address string, selfID int64) error {
+	existing, err := uc.repo.GetByAddress(ctx, address)
+	if err != nil {
+		return err
+	}
+	if existing != nil && existing.ID != selfID {
+		return httpErrors.EWithMessage(httpErrors.ErrDuplicate, "执行器地址已存在")
+	}
+	return nil
 }

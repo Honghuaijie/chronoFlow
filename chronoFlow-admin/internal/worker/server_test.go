@@ -28,6 +28,10 @@ func (r *fakeExecutorRepo) GetByID(context.Context, int64) (*biz.Executor, error
 	return nil, nil
 }
 
+func (r *fakeExecutorRepo) GetByAddress(context.Context, string) (*biz.Executor, error) {
+	return nil, nil
+}
+
 func (r *fakeExecutorRepo) Update(_ context.Context, executor *biz.Executor) (*biz.Executor, error) {
 	cp := *executor
 	r.updated = &cp

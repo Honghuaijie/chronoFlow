@@ -49,6 +49,14 @@ func TestExecutorRepoCreateGetListUpdateDelete(t *testing.T) {
 		t.Fatalf("unexpected executor: %+v", got)
 	}
 
+	gotByAddress, err := repo.GetByAddress(ctx, "http://127.0.0.1:19090")
+	if err != nil {
+		t.Fatalf("GetByAddress returned error: %v", err)
+	}
+	if gotByAddress == nil || gotByAddress.ID != created.ID {
+		t.Fatalf("unexpected executor by address: %+v", gotByAddress)
+	}
+
 	got.Name = "exec-b"
 	updated, err := repo.Update(ctx, got)
 	if err != nil {

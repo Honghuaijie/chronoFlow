@@ -60,6 +60,10 @@ func (fakeExecutorRepo) GetByID(context.Context, int64) (*biz.Executor, error) {
 	return nil, nil
 }
 
+func (fakeExecutorRepo) GetByAddress(context.Context, string) (*biz.Executor, error) {
+	return nil, nil
+}
+
 func (fakeExecutorRepo) List(context.Context) ([]*biz.Executor, error) {
 	return nil, nil
 }

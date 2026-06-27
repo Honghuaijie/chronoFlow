@@ -52,6 +52,16 @@ func (r *serviceExecutorRepo) GetByID(_ context.Context, id int64) (*biz.Executo
 	return &cp, nil
 }
 
+func (r *serviceExecutorRepo) GetByAddress(_ context.Context, address string) (*biz.Executor, error) {
+	for _, item := range r.items {
+		if item.Address == address {
+			cp := *item
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *serviceExecutorRepo) List(_ context.Context) ([]*biz.Executor, error) {
 	items := make([]*biz.Executor, 0, len(r.items))
 	for _, item := range r.items {

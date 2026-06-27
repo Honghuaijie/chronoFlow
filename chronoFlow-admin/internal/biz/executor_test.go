@@ -31,6 +31,16 @@ func (r *fakeExecutorRepo) GetByID(_ context.Context, id int64) (*Executor, erro
 	return &cp, nil
 }
 
+func (r *fakeExecutorRepo) GetByAddress(_ context.Context, address string) (*Executor, error) {
+	for _, item := range r.items {
+		if item.Address == address {
+			cp := *item
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *fakeExecutorRepo) List(_ context.Context) ([]*Executor, error) {
 	items := make([]*Executor, 0, len(r.items))
 	for _, item := range r.items {
@@ -89,6 +99,22 @@ func TestExecutorUsecaseCreateEncryptsTokenAndDefaultsOffline(t *testing.T) {
 	}
 }
 
+func TestExecutorUsecaseCreateRejectsDuplicateAddress(t *testing.T) {
+	repo := &fakeExecutorRepo{items: map[int64]*Executor{
+		7: {ID: 7, Name: "exists", Address: "http://127.0.0.1:19090"},
+	}}
+	uc := NewExecutorUsecase(repo, fakeTokenCipher{}, log.DefaultLogger)
+
+	_, err := uc.CreateExecutor(context.Background(), &CreateExecutorInput{
+		Name:    "new",
+		Address: " http://127.0.0.1:19090/ ",
+		Token:   "secret-token",
+	})
+	if err == nil {
+		t.Fatal("expected duplicate address error, got nil")
+	}
+}
+
 func TestExecutorUsecaseUpdateKeepsTokenWhenEmpty(t *testing.T) {
 	now := time.Now()
 	repo := &fakeExecutorRepo{items: map[int64]*Executor{
@@ -118,5 +144,30 @@ func TestExecutorUsecaseUpdateKeepsTokenWhenEmpty(t *testing.T) {
 	}
 	if repo.updated.Status != ExecutorStatusOnline {
 		t.Fatalf("expected status to be kept, got %q", repo.updated.Status)
+	}
+}
+
+func TestExecutorUsecaseUpdateRejectsDuplicateAddress(t *testing.T) {
+	now := time.Now()
+	repo := &fakeExecutorRepo{items: map[int64]*Executor{
+		1: {
+			ID:                1,
+			Name:              "old",
+			Address:           "http://old",
+			TokenCiphertext:   "enc:old",
+			Status:            ExecutorStatusOnline,
+			LastHeartbeatTime: &now,
+		},
+		2: {ID: 2, Name: "other", Address: "http://other"},
+	}}
+	uc := NewExecutorUsecase(repo, fakeTokenCipher{}, log.DefaultLogger)
+
+	_, err := uc.UpdateExecutor(context.Background(), &UpdateExecutorInput{
+		ID:      1,
+		Name:    "new",
+		Address: "http://other/",
+	})
+	if err == nil {
+		t.Fatal("expected duplicate address error, got nil")
 	}
 }

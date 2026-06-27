@@ -40,6 +40,18 @@ func (r *ExecutorRepo) GetByID(ctx context.Context, id int64) (*biz.Executor, er
 	return toBizExecutor(&model), nil
 }
 
+func (r *ExecutorRepo) GetByAddress(ctx context.Context, address string) (*biz.Executor, error) {
+	var model Executor
+	err := r.data.DB(ctx).WithContext(ctx).Where("address = ?", address).First(&model).Error
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toBizExecutor(&model), nil
+}
+
 func (r *ExecutorRepo) List(ctx context.Context) ([]*biz.Executor, error) {
 	var models []*Executor
 	if err := r.data.DB(ctx).WithContext(ctx).Order("id asc").Find(&models).Error; err != nil {
