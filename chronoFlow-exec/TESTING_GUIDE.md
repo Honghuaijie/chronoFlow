@@ -1,6 +1,6 @@
 # ChronoFlow Exec Testing Guide
 
-本文件只记录 Exec 模块验证。完整三端联调见 `../TESTING_GUIDE.md`。
+本文件只记录 Exec 模块验证。完整三端联调见 `../docs/TESTING_GUIDE.md`。
 
 ## 基础验证
 

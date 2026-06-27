@@ -25,6 +25,7 @@ ChronoFlow 是一个面向内网单团队使用的轻量定时任务平台。它
 ```bash
 git clone <your-repo-url> chronoflow
 cd chronoflow
+cd deploy
 cp .env.example .env
 docker compose up -d --build
 ```
@@ -43,7 +44,7 @@ admin / admin123
 
 ### 方式二：作者镜像部署
 
-适合只想快速部署使用的用户。复制 `.env.example` 后，把镜像地址改成作者发布的镜像：
+适合只想快速部署使用的用户。进入 `deploy/`，复制 `.env.example` 后，把镜像地址改成作者发布的镜像：
 
 ```env
 CHRONOFLOW_ADMIN_IMAGE=ghcr.io/your-name/chronoflow-admin:latest
@@ -74,7 +75,7 @@ MYSQL_HOST_PORT=3306
 
 ## MySQL 配置
 
-默认 `docker-compose.yml` 会启动一个 MySQL 8.0 容器，并通过环境变量自动创建数据库和用户：
+`deploy/docker-compose.yml` 默认会启动一个 MySQL 8.0 容器，并通过环境变量自动创建数据库和用户：
 
 ```env
 DB_HOST=mysql
@@ -85,7 +86,7 @@ DB_PASSWORD=chronoflow123
 MYSQL_ROOT_PASSWORD=root123456
 ```
 
-Admin 启动时会自动迁移表结构。`deploy/mysql/init/001-init.sql` 也提供了默认数据库初始化 SQL。
+Admin 启动时会自动迁移表结构。`deploy/mysql/init/001-init.sql` 提供默认数据库初始化 SQL。
 
 ### 使用外部 MySQL
 
@@ -160,11 +161,14 @@ chronoFlow/
 ├── chronoFlow-admin/        # 调度器后端，连接 MySQL
 ├── chronoFlow-exec/         # 执行器后端，不连接数据库
 ├── chronoFlow-ui/           # 调度中心前端
-├── deploy/mysql/init/       # MySQL 初始化 SQL
-├── deploy/scripts/          # 默认挂载到执行器的脚本目录
-├── docker-compose.yml       # 源码构建部署
-├── docker-compose.image.yml # 作者镜像部署
-└── .env.example             # 部署配置模板
+├── deploy/
+│   ├── docker-compose.yml       # 源码构建部署
+│   ├── docker-compose.image.yml # 作者镜像部署
+│   ├── docker-compose.local.yml # 本地开发调试部署
+│   ├── .env.example             # 部署配置模板
+│   ├── mysql/init/              # MySQL 初始化 SQL
+│   └── scripts/                 # 默认挂载到执行器的脚本目录
+└── docs/                        # PRD、测试指南、开发计划和过程记录
 ```
 
 ## 架构约定
@@ -205,6 +209,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:10003 npm run dev
 你当前本地已有 MySQL 容器的调试方式仍可使用：
 
 ```bash
+cd deploy
 docker compose -f docker-compose.local.yml up -d --build --remove-orphans
 ```
 

@@ -125,13 +125,13 @@ database: chronoflow
 
 ```bash
 cd /Users/hhj/dev/codexDemo/chronoFlow
-docker compose -f docker-compose.local.yml up -d --build --remove-orphans
+docker compose -f deploy/docker-compose.local.yml up -d --build --remove-orphans
 ```
 
 确认容器状态：
 
 ```bash
-docker compose -f docker-compose.local.yml ps
+docker compose -f deploy/docker-compose.local.yml ps
 ```
 
 期望：
@@ -782,7 +782,7 @@ docker stop chronoflow-exec
 恢复：
 
 ```bash
-docker compose -f docker-compose.local.yml up -d exec
+docker compose -f deploy/docker-compose.local.yml up -d exec
 ```
 
 ### TC-ERROR-002 callback 失败后重试

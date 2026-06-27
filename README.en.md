@@ -25,6 +25,7 @@ Use this when you want to build images locally or modify the code.
 ```bash
 git clone <your-repo-url> chronoflow
 cd chronoflow
+cd deploy
 cp .env.example .env
 docker compose up -d --build
 ```
@@ -43,7 +44,7 @@ admin / admin123
 
 ### Prebuilt Image Deployment
 
-Use this when the author has published images. Edit `.env`:
+Use this when the author has published images. Enter `deploy/`, then edit `.env`:
 
 ```env
 CHRONOFLOW_ADMIN_IMAGE=ghcr.io/your-name/chronoflow-admin:latest
@@ -178,6 +179,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:10003 npm run dev
 The previous local debugging Compose file is still available:
 
 ```bash
+cd deploy
 docker compose -f docker-compose.local.yml up -d --build --remove-orphans
 ```
 

@@ -1,7 +1,9 @@
+name: chronoflow-local
+
 services:
   admin:
     build:
-      context: ./chronoFlow-admin
+      context: ../chronoFlow-admin
     image: chronoflow-admin:local
     container_name: chronoflow-admin
     extra_hosts:
@@ -25,13 +27,13 @@ services:
       - "10003:10003"
       - "11003:11003"
     volumes:
-      - ./deploy/local/admin-conf:/data/conf:ro
-      - ./deploy/local/admin-data:/app/data
-      - ./deploy/local/admin-logs:/logs
+      - ./local/admin-conf:/data/conf:ro
+      - ./local/admin-data:/app/data
+      - ./local/admin-logs:/logs
 
   exec:
     build:
-      context: ./chronoFlow-exec
+      context: ../chronoFlow-exec
     image: chronoflow-exec:local
     container_name: chronoflow-exec
     environment:
@@ -45,7 +47,7 @@ services:
       - "10004:10004"
       - "11004:11004"
     volumes:
-      - ./deploy/local/exec-conf:/data/conf:ro
-      - ./deploy/local/exec-data:/app/data
-      - ./deploy/local/exec-logs:/logs
-      - ./deploy/local/scripts:/scripts:ro
+      - ./local/exec-conf:/data/conf:ro
+      - ./local/exec-data:/app/data
+      - ./local/exec-logs:/logs
+      - ./local/scripts:/scripts:ro

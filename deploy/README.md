@@ -101,7 +101,7 @@ MYSQL_ROOT_PASSWORD=root123456
 初始化 SQL 目录：
 
 ```text
-deploy/mysql/init
+mysql/init
 ```
 
 Admin 启动时会自动创建或迁移业务表，所以默认只需要数据库存在。
@@ -167,7 +167,7 @@ EXECUTOR_TOKEN=default-exec-token
 默认 compose 挂载：
 
 ```text
-deploy/scripts:/scripts:ro
+scripts:/scripts:ro
 ```
 
 Glue Shell 可以直接调用：

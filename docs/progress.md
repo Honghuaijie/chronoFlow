@@ -154,20 +154,20 @@ npm run build
 2. 用户确认文档应偏向给 AI/开发者照着实现的详细开发方案。
 3. 用户强调后端模板自带示例接口只学习写法，不当作业务代码。
 4. 用户强调执行器不需要数据库，方案中需要特别说明模板数据库连接要移除或禁用。
-5. 已创建 `task_plan.md`、`findings.md` 和本进度文件。
+5. 已创建 `docs/task_plan.md`、`docs/findings.md` 和本进度文件。
 6. 已扫描三个子项目目录：admin 和 exec 均为 Kratos 后端模板，ui 当前为前端项目。
 7. 已读取后端和前端 AI 编码规则，确认后端 proto-first 和前端 page/store/api 分层要求。
 8. 已读取 admin/exec 配置和 data 初始化，确认 exec 模板数据库连接需要作为强制改造点。
 9. 已完成三份技术方案校验：文件存在；占位符扫描无命中；UI 标题编号已修正；关键负向约束只出现在禁止项或契约提醒中。
 10. 已创建根目录中文版 README：`README.md`。
 11. 已创建根目录英文版 README：`README.en.md`。
-12. 已创建根目录测试与联调指南：`TESTING_GUIDE.md`。
+12. 已创建测试与联调指南：`docs/TESTING_GUIDE.md`。
 13. 已将 admin、exec 的 README 从模板说明改为 ChronoFlow 模块说明。
 14. 已为 admin、exec、ui 分别补充英文 README。
 15. 已将 admin、exec 的 TESTING_GUIDE 从模板测试说明改为 ChronoFlow 模块验证说明。
 16. 已补充根目录 `.gitignore`，并更新 admin、exec `.gitignore` 忽略本地 `data/`。
 17. 已确认 README/TESTING_GUIDE 中不再残留模板 `v1/users`、`UserUsecase` 等示例接口说明。
-18. 已补充开源部署方案：源码构建 `docker-compose.yml`、作者镜像 `docker-compose.image.yml`、`.env.example`、MySQL 初始化 SQL、UI Nginx 镜像和中英文快速部署文档。
+18. 已补充开源部署方案：源码构建 `deploy/docker-compose.yml`、作者镜像 `deploy/docker-compose.image.yml`、`deploy/.env.example`、MySQL 初始化 SQL、UI Nginx 镜像和中英文快速部署文档。
 
 ## 联调记录
 
