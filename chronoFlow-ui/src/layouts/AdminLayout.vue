@@ -2,6 +2,7 @@
 import { computed, h, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  BarChartOutlined,
   ClockCircleOutlined,
   DatabaseOutlined,
   FileSearchOutlined,
@@ -45,6 +46,10 @@ function logout() {
         <a-menu-item key="/jobs" @click="router.push('/jobs')">
           <ClockCircleOutlined />
           <span>任务</span>
+        </a-menu-item>
+        <a-menu-item key="/reports" @click="router.push('/reports')">
+          <BarChartOutlined />
+          <span>运行报表</span>
         </a-menu-item>
         <a-menu-item key="/logs" @click="router.push('/logs')">
           <FileSearchOutlined />

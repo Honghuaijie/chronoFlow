@@ -6,6 +6,7 @@ import ExecutorListView from '@/views/executors/ExecutorListView.vue'
 import JobListView from '@/views/jobs/JobListView.vue'
 import JobLogListView from '@/views/logs/JobLogListView.vue'
 import JobLogDetailView from '@/views/logs/JobLogDetailView.vue'
+import RunReportView from '@/views/reports/RunReportView.vue'
 import SettingsView from '@/views/settings/SettingsView.vue'
 import HelpView from '@/views/help/HelpView.vue'
 
@@ -37,6 +38,12 @@ const router = createRouter({
           name: 'jobs',
           component: JobListView,
           meta: { title: '任务' },
+        },
+        {
+          path: 'reports',
+          name: 'reports',
+          component: RunReportView,
+          meta: { title: '运行报表' },
         },
         {
           path: 'logs',
