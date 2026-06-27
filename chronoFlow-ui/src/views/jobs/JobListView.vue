@@ -11,6 +11,7 @@ import { useJobLogsStore } from '@/stores/jobLogs'
 import { useJobsStore } from '@/stores/jobs'
 import type { ExecutorInfo } from '@/types/executor'
 import type { JobForm, JobInfo } from '@/types/job'
+import { formatNextRunTime } from '@/utils/cron'
 import { formatDateTime } from '@/utils/datetime'
 import { isActiveLogStatus } from '@/utils/status'
 
@@ -166,7 +167,7 @@ async function runNow(row: JobInfo) {
         :loading="jobsStore.loading"
         :pagination="false"
         size="middle"
-        :scroll="{ x: 1220 }"
+        :scroll="{ x: 1400 }"
       >
         <a-table-column title="任务" data-index="name" :width="190" fixed="left" />
         <a-table-column title="执行器" data-index="executorId" :width="170">
@@ -177,6 +178,12 @@ async function runNow(row: JobInfo) {
         <a-table-column title="Cron" data-index="cronExpr" :width="170">
           <template #default="{ text }">
             <span class="mono">{{ text }}</span>
+          </template>
+        </a-table-column>
+        <a-table-column title="下次运行" data-index="cronExpr" :width="180">
+          <template #default="{ text, record }">
+            <span v-if="(record as JobInfo).scheduleStatus === 'running'">{{ formatNextRunTime(text) }}</span>
+            <span v-else class="muted-text">未启动</span>
           </template>
         </a-table-column>
         <a-table-column title="超时" data-index="timeoutSeconds" :width="90">
