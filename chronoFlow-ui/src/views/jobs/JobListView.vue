@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Modal } from 'ant-design-vue'
+import CronExpressionPicker from '@/components/CronExpressionPicker.vue'
 import PageHeaderBar from '@/components/PageHeaderBar.vue'
 import PollingIndicator from '@/components/PollingIndicator.vue'
 import StatusTag from '@/components/StatusTag.vue'
@@ -247,7 +248,7 @@ async function runNow(row: JobInfo) {
           <a-select v-model:value="form.executorId" :options="executorOptions" placeholder="选择执行器" />
         </a-form-item>
         <a-form-item label="Cron 表达式" required>
-          <a-input v-model:value="form.cronExpr" class="mono" placeholder="0 */5 * * * *" />
+          <CronExpressionPicker v-model:value="form.cronExpr" />
         </a-form-item>
         <a-form-item label="超时时间（秒）" required>
           <a-input-number v-model:value="form.timeoutSeconds" :min="1" :max="604800" style="width: 100%" />
