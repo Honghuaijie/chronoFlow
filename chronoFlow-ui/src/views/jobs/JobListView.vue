@@ -167,7 +167,7 @@ async function runNow(row: JobInfo) {
         :loading="jobsStore.loading"
         :pagination="false"
         size="middle"
-        :scroll="{ x: 1400 }"
+        :scroll="{ x: 1540 }"
       >
         <a-table-column title="任务" data-index="name" :width="190" fixed="left" />
         <a-table-column title="执行器" data-index="executorId" :width="170">
@@ -203,7 +203,14 @@ async function runNow(row: JobInfo) {
         <a-table-column title="更新时间" data-index="updatedAt" :width="180">
           <template #default="{ text }">{{ formatDateTime(text) }}</template>
         </a-table-column>
-        <a-table-column title="说明" data-index="description" />
+        <a-table-column title="说明" data-index="description" :width="260">
+          <template #default="{ text }">
+            <a-tooltip v-if="text" :title="text">
+              <span class="description-cell">{{ text }}</span>
+            </a-tooltip>
+            <span v-else class="muted-text">-</span>
+          </template>
+        </a-table-column>
         <a-table-column title="操作" :width="360" fixed="right">
           <template #default="{ record }">
             <a-space wrap>
@@ -285,5 +292,16 @@ async function runNow(row: JobInfo) {
 .glue-editor {
   min-height: calc(100vh - 148px);
   resize: vertical;
+}
+
+.description-cell {
+  display: -webkit-box;
+  max-width: 240px;
+  overflow: hidden;
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-word;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 </style>
