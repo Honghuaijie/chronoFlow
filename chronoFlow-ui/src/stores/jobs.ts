@@ -37,6 +37,12 @@ export const useJobsStore = defineStore('jobs', {
         this.loading = false
       }
     },
+    setExecutorFilter(executorId?: string) {
+      this.filters.executorId = executorId || undefined
+    },
+    resetFilters() {
+      this.filters = {}
+    },
     async save(form: JobForm) {
       this.submitting = true
       try {

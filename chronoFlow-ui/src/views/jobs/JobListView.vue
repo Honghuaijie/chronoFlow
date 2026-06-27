@@ -46,6 +46,10 @@ const activeJobIds = computed(() => {
 })
 
 const modalTitle = computed(() => (editingId.value ? '编辑任务' : '新增任务'))
+const selectedExecutorId = computed({
+  get: () => jobsStore.filters.executorId,
+  set: (value?: string) => jobsStore.setExecutorFilter(value),
+})
 
 onMounted(async () => {
   await Promise.all([executorsStore.fetchList(), jobsStore.fetchList(), refreshActiveLogs()])
@@ -62,6 +66,15 @@ onBeforeUnmount(() => {
 
 async function refreshActiveLogs() {
   await logsStore.fetchActiveList()
+}
+
+async function applyFilters() {
+  await jobsStore.fetchList()
+}
+
+async function resetFilters() {
+  jobsStore.resetFilters()
+  await jobsStore.fetchList()
 }
 
 function resetForm() {
@@ -159,6 +172,23 @@ async function runNow(row: JobInfo) {
         <a-button type="primary" @click="openCreate">新增任务</a-button>
       </a-space>
     </PageHeaderBar>
+
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <a-select
+          v-model:value="selectedExecutorId"
+          allow-clear
+          show-search
+          placeholder="按执行器筛选"
+          style="width: 220px"
+          :options="executorOptions"
+        />
+      </div>
+      <div class="toolbar-right">
+        <a-button type="primary" @click="applyFilters">筛选</a-button>
+        <a-button @click="resetFilters">重置</a-button>
+      </div>
+    </div>
 
     <div class="table-shell">
       <a-table
