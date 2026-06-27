@@ -14,18 +14,13 @@ ChronoFlow 是一个面向内网单团队使用的轻量定时任务平台。它
 - 日志存储：MySQL 只保存日志元数据，完整日志正文保存为文件。
 - 运行报表：展示任务数量、近 7 天调度次数、执行器数量、成功率和日期趋势。
 
-## 快速部署
+## 快速开始
 
-项目支持两种 Docker 部署方式。
-
-### 方式一：源码构建部署
-
-适合想本地构建镜像、二次开发或内网无法拉取作者镜像的用户。
+源码构建部署：
 
 ```bash
 git clone <your-repo-url> chronoflow
-cd chronoflow
-cd deploy
+cd chronoflow/deploy
 cp .env.example .env
 docker compose up -d --build
 ```
@@ -42,117 +37,14 @@ http://127.0.0.1:5173
 admin / admin123
 ```
 
-### 方式二：作者镜像部署
-
-适合只想快速部署使用的用户。进入 `deploy/`，复制 `.env.example` 后，把镜像地址改成作者发布的镜像：
-
-```env
-CHRONOFLOW_ADMIN_IMAGE=ghcr.io/your-name/chronoflow-admin:latest
-CHRONOFLOW_EXEC_IMAGE=ghcr.io/your-name/chronoflow-exec:latest
-CHRONOFLOW_UI_IMAGE=ghcr.io/your-name/chronoflow-ui:latest
-```
-
-启动：
+如果使用作者提前发布的镜像，修改 `deploy/.env` 中的镜像地址后运行：
 
 ```bash
+cd deploy
 docker compose -f docker-compose.image.yml up -d
 ```
 
-## 端口配置
-
-所有端口都在 `.env` 中配置：
-
-```env
-CHRONOFLOW_UI_PORT=5173
-CHRONOFLOW_ADMIN_HTTP_PORT=10003
-CHRONOFLOW_ADMIN_GRPC_PORT=11003
-CHRONOFLOW_EXEC_HTTP_PORT=10004
-CHRONOFLOW_EXEC_GRPC_PORT=11004
-MYSQL_HOST_PORT=3306
-```
-
-如果本机 `5173` 或 `3306` 被占用，直接改 `.env` 后重新启动即可。
-
-## MySQL 配置
-
-`deploy/docker-compose.yml` 默认会启动一个 MySQL 8.0 容器，并通过环境变量自动创建数据库和用户：
-
-```env
-DB_HOST=mysql
-DB_PORT=3306
-DB_NAME=chronoflow
-DB_USER=chronoflow
-DB_PASSWORD=chronoflow123
-MYSQL_ROOT_PASSWORD=root123456
-```
-
-Admin 启动时会自动迁移表结构。`deploy/mysql/init/001-init.sql` 提供默认数据库初始化 SQL。
-
-### 使用外部 MySQL
-
-如果你已有 MySQL，可以把 `.env` 改成外部地址：
-
-```env
-DB_HOST=host.docker.internal
-DB_PORT=3306
-DB_NAME=chronoflow
-DB_USER=root
-DB_PASSWORD=root
-```
-
-Linux 服务器也可以直接写数据库 IP：
-
-```env
-DB_HOST=192.168.1.20
-```
-
-使用外部 MySQL 时，请先创建数据库：
-
-```sql
-CREATE DATABASE IF NOT EXISTS chronoflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-如果不需要 compose 内置 MySQL，可以只启动：
-
-```bash
-docker compose up -d --build --no-deps admin exec ui
-```
-
-## 创建第一个执行器
-
-Docker compose 部署后，Admin 在容器网络内访问 Exec，所以执行器地址填写：
-
-```text
-名称：default-exec
-地址：http://chronoflow-exec:10004
-Token：default-exec-token
-```
-
-Token 来自 `.env`：
-
-```env
-EXECUTOR_TOKEN=default-exec-token
-```
-
-## 创建第一个任务
-
-1. 在任务页面新增任务，选择 `default-exec`。
-2. 打开 Glue 编辑器，保存：
-
-```bash
-echo chronoflow-demo-start
-python3 /scripts/report.py
-echo chronoflow-demo-done
-```
-
-3. 点击“运行”。
-4. 在执行日志中查看状态和日志正文。
-
-默认 compose 会把宿主机目录挂载到执行器容器：
-
-```text
-deploy/scripts -> /scripts
-```
+详细部署、端口、MySQL、外部数据库、脚本挂载和首个任务创建说明见 [deploy/README.md](deploy/README.md)。
 
 ## 项目结构
 
@@ -161,13 +53,8 @@ chronoFlow/
 ├── chronoFlow-admin/        # 调度器后端，连接 MySQL
 ├── chronoFlow-exec/         # 执行器后端，不连接数据库
 ├── chronoFlow-ui/           # 调度中心前端
-├── deploy/
-│   ├── docker-compose.yml       # 源码构建部署
-│   ├── docker-compose.image.yml # 作者镜像部署
-│   ├── .env.example             # 部署配置模板
-│   ├── mysql/init/              # MySQL 初始化 SQL
-│   └── scripts/                 # 默认挂载到执行器的脚本目录
-└── docs/                        # PRD、测试指南、开发计划和过程记录
+├── deploy/                  # Docker Compose、env 模板、MySQL 初始化和脚本挂载
+└── docs/                    # PRD、测试指南、开发计划和过程记录
 ```
 
 ## 架构约定
@@ -205,13 +92,6 @@ npm install
 VITE_API_PROXY_TARGET=http://127.0.0.1:10003 npm run dev
 ```
 
-如果你已有本机 MySQL，可以在 `deploy/.env` 中把 `DB_HOST` 改为 `host.docker.internal`，然后只启动应用服务：
-
-```bash
-cd deploy
-docker compose up -d --build --no-deps admin exec ui
-```
-
 ## 验证命令
 
 ```bash
@@ -228,6 +108,8 @@ go test ./internal/... -count=1
 cd chronoFlow-ui
 npm run build
 ```
+
+完整测试指南见 [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)。
 
 ## 生产注意事项
 
