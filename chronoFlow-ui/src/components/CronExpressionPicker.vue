@@ -39,7 +39,7 @@ const expression = computed(() => {
     return `0 */${config.minuteInterval} * * * *`
   }
   if (activeTab.value === 'hour') {
-    return `0 0 */${config.hourInterval} * * *`
+    return `${config.second} ${config.minute} */${config.hourInterval} * * *`
   }
   if (activeTab.value === 'day') {
     return `${config.second} ${config.minute} ${config.hour} * * *`
@@ -104,6 +104,10 @@ function applyExpression() {
             <a-form-item label="间隔小时">
               <a-input-number v-model:value="config.hourInterval" :min="1" :max="23" style="width: 180px" />
             </a-form-item>
+            <div class="time-grid">
+              <a-form-item label="分"><a-input-number v-model:value="config.minute" :min="0" :max="59" /></a-form-item>
+              <a-form-item label="秒"><a-input-number v-model:value="config.second" :min="0" :max="59" /></a-form-item>
+            </div>
           </a-form>
         </a-tab-pane>
         <a-tab-pane key="day" tab="日">

@@ -180,8 +180,8 @@ export function describeCron(expr: string): string {
   if (second === '0' && minute.startsWith('*/') && hour === '*' && day === '*' && month === '*' && weekday === '*') {
     return `每 ${minute.slice(2)} 分钟`
   }
-  if (second === '0' && minute === '0' && hour.startsWith('*/') && day === '*' && month === '*' && weekday === '*') {
-    return `每 ${hour.slice(2)} 小时`
+  if (hour.startsWith('*/') && day === '*' && month === '*' && weekday === '*') {
+    return `每 ${hour.slice(2)} 小时的第 ${minute.padStart(2, '0')} 分钟`
   }
   if (day === '*' && month === '*' && weekday === '*') {
     return `每天 ${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}`
