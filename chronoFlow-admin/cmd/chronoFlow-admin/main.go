@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
+	configenv "github.com/go-kratos/kratos/v2/config/env"
 	"github.com/go-kratos/kratos/v2/config/file"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
@@ -87,6 +88,7 @@ func loadConfig(basePath, env string) (config.Config, error) {
 	if env != "" {
 		sources = append(sources, file.NewSource(filepath.Join(basePath, fmt.Sprintf("config-%s.yaml", env))))
 	}
+	sources = append(sources, configenv.NewSource())
 
 	c := config.New(config.WithSource(sources...))
 	if err := c.Load(); err != nil {
