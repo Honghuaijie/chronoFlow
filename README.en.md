@@ -1,27 +1,105 @@
-# ChronoFlow
+<h1 align="center">ChronoFlow</h1>
+
+<p align="center">
+  A lightweight internal scheduled job platform for Shell / Python scripts and small-team operations.
+</p>
+
+<p align="center">
+  <a href="README.md">简体中文</a>
+  ·
+  <a href="deploy/README.md">Deployment Guide</a>
+  ·
+  <a href="docs/TESTING_GUIDE.md">Testing Guide</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white" alt="Go 1.22">
+  <img src="https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3">
+  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white" alt="Docker Compose">
+  <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white" alt="MySQL 8.0">
+</p>
+
+<p align="center">
+  <img src="docs/images/chronoflow-jobs.png" alt="ChronoFlow jobs" width="920">
+</p>
+
+## What is ChronoFlow?
 
 ChronoFlow is a lightweight scheduled job platform for internal single-team use. It includes a scheduler backend, an executor backend, and a web console for Cron schedules, manual runs, Glue Shell scripts, async callbacks, kill operations, execution logs, and runtime reports.
 
+It is designed for teams that currently manage many Shell / Python scripts with crontab but want:
+
+- A visible job list with upcoming run times
+- Manual run, pause, resume, and kill operations
+- Centralized stdout / stderr logs and failure reasons
+- A simple web console for non-ops teammates
+- A lighter alternative to large distributed scheduling systems
+
 ## Features
 
-- Executor management: create, edit, delete, and heartbeat status.
-- Job management: create, edit, delete, start scheduling, stop scheduling, and manual run.
-- Visual Cron picker for common minute, hour, day, week, and month schedules, plus manual expressions.
-- Glue Shell scripts per job. Scripts can call Python or other files mounted into the executor container.
-- Async execution: Admin dispatches a run request and returns immediately; Exec callbacks Admin after completion.
-- Per-job mutual exclusion: the same job cannot run concurrently, while different jobs can run in parallel.
-- Kill running jobs: Admin asks Exec to kill the process group. Logs enter `killing` and eventually become `killed` or `failed`.
-- Log storage: MySQL stores metadata only; full log content is stored as files.
-- Reports: job count, run count, executor count, success rate, and recent 7-day trend.
+| Capability | Description |
+| --- | --- |
+| Executor management | Create, edit, delete, and monitor executor heartbeat status. |
+| Job management | Create, edit, start scheduling, stop scheduling, and manually run jobs. |
+| Visual Cron picker | Configure minute, hour, day, week, and month schedules, or write a manual expression. |
+| Glue Shell | Store one Shell script per job; scripts can call mounted Python or other local files. |
+| Async callback | Admin dispatches a run request and returns immediately; Exec callbacks Admin after completion. |
+| Per-job mutual exclusion | The same job cannot run concurrently, while different jobs can run in parallel. |
+| Kill operation | Admin asks Exec to kill the process group, useful when Shell starts Python subprocesses. |
+| File-based logs | MySQL stores metadata only; full log content is stored as files. |
+| Runtime report | View job count, run count, executor count, success rate, and recent 7-day trends. |
+
+## Screenshots
+
+| Login | Executors |
+| --- | --- |
+| <img src="docs/images/chronoflow-login.png" alt="Login" width="420"> | <img src="docs/images/chronoflow-executors.png" alt="Executors" width="620"> |
+
+| Cron Picker | Glue Shell |
+| --- | --- |
+| <img src="docs/images/chronoflow-cron-picker.png" alt="Cron picker" width="520"> | <img src="docs/images/chronoflow-glue-shell.png" alt="Glue Shell" width="520"> |
+
+| Log Detail | Runtime Report |
+| --- | --- |
+| <img src="docs/images/chronoflow-log-detail.png" alt="Log detail" width="620"> | <img src="docs/images/chronoflow-report.png" alt="Runtime report" width="620"> |
 
 ## Quick Start
 
 ChronoFlow supports two Docker deployment modes:
 
-- Source-build deployment: for developers who want to modify code and build images locally.
-- Prebuilt-image deployment: for servers where you do not want to pull the full source code.
+- **Prebuilt-image deployment**: for servers where you do not want to pull the full source code.
+- **Source-build deployment**: for developers who want to modify code and build images locally.
 
-### Source-Build Deployment
+### Option 1: Prebuilt-Image Deployment
+
+The server only needs the files under `deploy`; it does not need the full source code.
+
+```bash
+cd deploy
+cp .env.example .env
+```
+
+Admin / Exec fixed image versions are recommended. The UI example currently uses `latest`; if you also publish a UI version tag, replace it with that version:
+
+```env
+CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.2
+CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.2
+CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:latest
+```
+
+If you want to use the bundled MySQL service:
+
+```bash
+docker compose -f docker-compose.mysql.yml up -d
+```
+
+Start the application:
+
+```bash
+docker compose -f docker-compose.image.yml up -d
+```
+
+### Option 2: Source-Build Deployment
 
 ```bash
 git clone https://github.com/Honghuaijie/chronoFlow.git chronoflow
@@ -35,29 +113,10 @@ If you want to use the bundled MySQL service:
 docker compose -f docker-compose.mysql.yml up -d
 ```
 
-If you already have an external MySQL instance, skip the previous command and update `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in `.env`.
-
 Start the application:
 
 ```bash
 docker compose up -d --build
-```
-
-### Prebuilt-Image Deployment
-
-The server only needs the files under `deploy`; it does not need the full source code. Fixed image versions are recommended:
-
-```env
-CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.2
-CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.2
-CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:latest
-```
-
-Start the application:
-
-```bash
-cd deploy
-docker compose -f docker-compose.image.yml up -d
 ```
 
 Open:
@@ -74,9 +133,11 @@ admin / admin123
 
 For production, change the default admin password, JWT secret, callback token, executor token, and database password in `.env`.
 
-For detailed deployment, ports, MySQL, external database, script mounts, and first-job setup, see [deploy/README.md](deploy/README.md).
+For detailed deployment, ports, MySQL, external database, script mounts, and troubleshooting, see [deploy/README.md](deploy/README.md).
 
-## First Executor
+## First Use
+
+### 1. Create an executor
 
 If Admin and Exec are started by the same compose stack, create an executor in the UI with:
 
@@ -88,7 +149,7 @@ Token: the EXECUTOR_TOKEN value from .env
 
 Do not use `http://127.0.0.1:10004`, because from the Admin container, `127.0.0.1` means the Admin container itself, not the Exec container.
 
-## First Test Job
+### 2. Create a test job
 
 Create a Glue Shell job to verify the full run path:
 
@@ -105,17 +166,6 @@ echo "done"
 
 After a manual run, the execution log should be `success` and include the script output.
 
-## Project Layout
-
-```text
-chronoFlow/
-├── chronoFlow-admin/        # Scheduler backend. Connects to MySQL.
-├── chronoFlow-exec/         # Executor backend. No database connection.
-├── chronoFlow-ui/           # Web console.
-├── deploy/                  # Docker Compose, env template, MySQL init, and scripts.
-└── docs/                    # PRD, testing guide, development plan, and notes.
-```
-
 ## Architecture
 
 ```text
@@ -130,6 +180,17 @@ UI -> Admin -> Exec
 - Admin calls Exec with the executor's `X-Executor-Token`.
 - Exec callbacks Admin with the global `X-Callback-Token`.
 - If callback fails, Exec stores the pending callback locally and retries in the background. The default retention is 7 days.
+
+## Project Layout
+
+```text
+chronoFlow/
+├── chronoFlow-admin/        # Scheduler backend. Connects to MySQL.
+├── chronoFlow-exec/         # Executor backend. No database connection.
+├── chronoFlow-ui/           # Web console.
+├── deploy/                  # Docker Compose, env template, MySQL init, and scripts.
+└── docs/                    # PRD, testing guide, development plan, and notes.
+```
 
 ## Development
 
@@ -169,6 +230,20 @@ npm run build
 ```
 
 For the full testing guide, see [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md).
+
+## Suitable Scenarios
+
+ChronoFlow is currently best suited for:
+
+- Internal networks
+- Single-team use
+- Dozens of jobs or fewer
+- A single scheduler
+- Shell / Python script scheduling
+- Lightweight Docker deployment
+- Web-based operation and log inspection
+
+It is not positioned as a large-scale distributed scheduler, and it intentionally avoids complex multi-tenant permission systems and massive scheduling workloads in the first version.
 
 ## Production Notes
 
