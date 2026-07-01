@@ -1,81 +1,83 @@
-# Job Failure Alert Implementation Plan
+# 任务失败告警实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给 AI/开发者的要求：** 实施本计划时必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans`，并按任务逐项推进。步骤使用 checkbox（`- [ ]`）格式，方便执行过程中跟踪进度。
 
-**Goal:** Add V1 Feishu webhook failure alerts for ChronoFlow jobs, including encrypted global webhook settings, per-job alert switches, async alert sending, alert status in job logs, frontend settings UI, and documentation.
+**目标：** 为 ChronoFlow 增加 V1 飞书 Webhook 失败告警能力，包括全局加密 Webhook 配置、任务级告警开关、异步发送飞书卡片、日志详情展示告警状态、前端系统设置页面和文档更新。
 
-**Architecture:** Admin remains the only service that connects to MySQL and sends alerts. Exec does not know about alert configuration. Job runs snapshot the per-job alert switch into `job_logs`, and Admin asynchronously sends Feishu cards after a log first reaches `failed` or `timeout`.
+**架构：** Admin 仍然是唯一连接 MySQL 和发送告警的服务，Exec 不感知告警配置。任务开始运行时把任务的失败告警开关快照到 `job_logs`，当日志首次进入 `failed` 或 `timeout` 最终状态后，由 Admin 异步发送飞书卡片。
 
-**Tech Stack:** Go 1.22, Kratos, gRPC/HTTP proto generation, GORM/MySQL, Vue 3, Ant Design Vue, Docker Compose.
-
----
-
-## File Map
-
-Backend API and generated files:
-
-- Modify `chronoFlow-admin/api/job/v1/job.proto`: add `failure_alert_enabled`.
-- Modify `chronoFlow-admin/api/joblog/v1/job_log.proto`: add alert fields to `JobLogInfo`.
-- Create `chronoFlow-admin/api/system/v1/system_settings.proto`: system settings API for Feishu alert webhook.
-- Regenerate `chronoFlow-admin/api/all-pb-go/v1/*` and `chronoFlow-admin/openapi.yaml` with `make api`.
-
-Backend data layer:
-
-- Modify `chronoFlow-admin/internal/data/model.go`: add `failure_alert_enabled`, alert fields, and `SystemSetting`.
-- Modify `chronoFlow-admin/internal/data/data.go`: migrate `SystemSetting` and bind repo interfaces.
-- Modify `chronoFlow-admin/internal/data/job.go`: map `failure_alert_enabled`.
-- Modify `chronoFlow-admin/internal/data/job_log.go`: map alert fields and add alert-specific update helpers.
-- Create `chronoFlow-admin/internal/data/system_setting.go`: encrypted setting persistence.
-
-Backend biz layer:
-
-- Modify `chronoFlow-admin/internal/biz/job.go`: carry `FailureAlertEnabled`.
-- Modify `chronoFlow-admin/internal/biz/job_run.go`: snapshot alert switch and mark direct dispatch failures for alert.
-- Modify `chronoFlow-admin/internal/biz/callback.go`: trigger async alert after final status update.
-- Modify `chronoFlow-admin/internal/biz/maintenance.go`: mark stale pending alerts failed on startup and trigger recovery failure alerts.
-- Create `chronoFlow-admin/internal/biz/system_setting.go`: settings usecase.
-- Create `chronoFlow-admin/internal/biz/alert.go`: alert sender orchestration.
-- Create `chronoFlow-admin/internal/biz/feishu_alert.go`: Feishu card payload builder and HTTP sender.
-
-Backend service and DI:
-
-- Create `chronoFlow-admin/internal/service/system_settings.go`.
-- Modify `chronoFlow-admin/internal/service/job.go`: request/response mapping.
-- Modify `chronoFlow-admin/internal/service/job_log.go`: response mapping.
-- Modify `chronoFlow-admin/internal/biz/biz.go`, `chronoFlow-admin/internal/data/data.go`, `chronoFlow-admin/internal/service/service.go`, and `chronoFlow-admin/cmd/chronoFlow-admin/wire.go`: providers and bindings.
-- Regenerate `chronoFlow-admin/cmd/chronoFlow-admin/wire_gen.go` with `make wire`.
-
-Frontend:
-
-- Modify `chronoFlow-ui/src/types/job.ts` and `chronoFlow-ui/src/types/jobLog.ts`.
-- Modify `chronoFlow-ui/src/api/jobs.ts`, `chronoFlow-ui/src/stores/jobs.ts`, `chronoFlow-ui/src/views/jobs/JobListView.vue`.
-- Modify `chronoFlow-ui/src/api/jobLogs.ts`, `chronoFlow-ui/src/stores/jobLogs.ts`, `chronoFlow-ui/src/views/logs/JobLogDetailView.vue`.
-- Create `chronoFlow-ui/src/types/systemSettings.ts`.
-- Create `chronoFlow-ui/src/api/systemSettings.ts`.
-- Modify `chronoFlow-ui/src/views/settings/SettingsView.vue`.
-- Optionally add tests only where existing frontend test infrastructure exists; otherwise verify with `npm run build`.
-
-Docs:
-
-- Modify `README.md`, `README.en.md`, and `deploy/README.md`.
-- Modify `docs/TESTING_GUIDE.md` with alert manual test cases.
+**技术栈：** Go 1.22、Kratos、gRPC/HTTP proto 生成、GORM/MySQL、Vue 3、Ant Design Vue、Docker Compose。
 
 ---
 
-## Task 1: Backend schema and proto fields
+## 文件地图
 
-**Files:**
-- Modify: `chronoFlow-admin/api/job/v1/job.proto`
-- Modify: `chronoFlow-admin/api/joblog/v1/job_log.proto`
-- Create: `chronoFlow-admin/api/system/v1/system_settings.proto`
-- Modify: generated files under `chronoFlow-admin/api/all-pb-go/v1/`
-- Modify: `chronoFlow-admin/openapi.yaml`
-- Test: `chronoFlow-admin/internal/service/job_test.go`
-- Test: `chronoFlow-admin/internal/service/job_log_test.go`
+### 后端 API 和生成文件
 
-- [ ] **Step 1: Add failing service mapping expectations**
+- 修改 `chronoFlow-admin/api/job/v1/job.proto`：新增 `failure_alert_enabled`。
+- 修改 `chronoFlow-admin/api/joblog/v1/job_log.proto`：给 `JobLogInfo` 增加告警字段。
+- 新增 `chronoFlow-admin/api/system/v1/system_settings.proto`：系统设置 API，用于飞书告警 Webhook。
+- 运行 `make api` 重新生成 `chronoFlow-admin/api/all-pb-go/v1/*` 和 `chronoFlow-admin/openapi.yaml`。
 
-In `chronoFlow-admin/internal/service/job_test.go`, extend existing create/update/list assertions so they expect `FailureAlertEnabled` to round-trip. Use this pattern in the relevant tests:
+### 后端数据层
+
+- 修改 `chronoFlow-admin/internal/data/model.go`：新增 `failure_alert_enabled`、告警字段和 `SystemSetting` 模型。
+- 修改 `chronoFlow-admin/internal/data/data.go`：迁移 `SystemSetting`，绑定仓储接口。
+- 修改 `chronoFlow-admin/internal/data/job.go`：映射 `failure_alert_enabled`。
+- 修改 `chronoFlow-admin/internal/data/job_log.go`：映射告警字段，增加告警状态更新方法。
+- 新增 `chronoFlow-admin/internal/data/system_setting.go`：系统设置持久化。
+
+### 后端业务层
+
+- 修改 `chronoFlow-admin/internal/biz/job.go`：增加 `FailureAlertEnabled`。
+- 修改 `chronoFlow-admin/internal/biz/job_run.go`：运行时快照告警开关，并处理直接调度失败告警。
+- 修改 `chronoFlow-admin/internal/biz/callback.go`：callback 更新最终状态后触发异步告警。
+- 修改 `chronoFlow-admin/internal/biz/maintenance.go`：启动时处理历史 pending 告警，恢复失败时触发告警。
+- 新增 `chronoFlow-admin/internal/biz/system_setting.go`：系统设置 usecase。
+- 新增 `chronoFlow-admin/internal/biz/alert.go`：告警编排 usecase。
+- 新增 `chronoFlow-admin/internal/biz/feishu_alert.go`：飞书卡片构建和 HTTP 发送器。
+
+### 后端服务与依赖注入
+
+- 新增 `chronoFlow-admin/internal/service/system_settings.go`。
+- 修改 `chronoFlow-admin/internal/service/job.go`：任务请求/响应映射。
+- 修改 `chronoFlow-admin/internal/service/job_log.go`：日志响应映射。
+- 修改 `chronoFlow-admin/internal/biz/biz.go`、`chronoFlow-admin/internal/data/data.go`、`chronoFlow-admin/internal/service/service.go`、`chronoFlow-admin/cmd/chronoFlow-admin/wire.go`：Provider 和接口绑定。
+- 运行 `make wire` 重新生成 `chronoFlow-admin/cmd/chronoFlow-admin/wire_gen.go`。
+
+### 前端
+
+- 修改 `chronoFlow-ui/src/types/job.ts`、`chronoFlow-ui/src/types/jobLog.ts`。
+- 修改 `chronoFlow-ui/src/api/jobs.ts`、`chronoFlow-ui/src/stores/jobs.ts`、`chronoFlow-ui/src/views/jobs/JobListView.vue`。
+- 修改 `chronoFlow-ui/src/api/jobLogs.ts`、`chronoFlow-ui/src/stores/jobLogs.ts`、`chronoFlow-ui/src/views/logs/JobLogDetailView.vue`。
+- 新增 `chronoFlow-ui/src/types/systemSettings.ts`。
+- 新增 `chronoFlow-ui/src/api/systemSettings.ts`。
+- 修改 `chronoFlow-ui/src/views/settings/SettingsView.vue`。
+
+### 文档
+
+- 修改 `README.md`、`README.en.md`、`deploy/README.md`。
+- 修改 `docs/TESTING_GUIDE.md`，增加失败告警测试用例。
+
+---
+
+## 任务 1：后端 Schema 和 Proto 字段
+
+**文件：**
+
+- 修改：`chronoFlow-admin/api/job/v1/job.proto`
+- 修改：`chronoFlow-admin/api/joblog/v1/job_log.proto`
+- 新增：`chronoFlow-admin/api/system/v1/system_settings.proto`
+- 修改：`chronoFlow-admin/api/all-pb-go/v1/` 下生成文件
+- 修改：`chronoFlow-admin/openapi.yaml`
+- 测试：`chronoFlow-admin/internal/service/job_test.go`
+- 测试：`chronoFlow-admin/internal/service/job_log_test.go`
+
+- [ ] **步骤 1：先写失败的 service 映射测试**
+
+在 `chronoFlow-admin/internal/service/job_test.go` 中扩展创建、更新、列表相关断言，验证 `FailureAlertEnabled` 可以完整往返。
+
+示例断言：
 
 ```go
 req := &v1.CreateJobRequest{
@@ -92,7 +94,7 @@ require.NoError(t, err)
 require.True(t, reply.GetData().GetJob().GetFailureAlertEnabled())
 ```
 
-In `chronoFlow-admin/internal/service/job_log_test.go`, extend `toJobLogInfo` tests to expect:
+在 `chronoFlow-admin/internal/service/job_log_test.go` 中扩展 `toJobLogInfo` 测试，验证：
 
 ```go
 AlertEnabledSnapshot: true,
@@ -101,20 +103,18 @@ AlertError:           "",
 AlertSentAt:          "2026-06-30 10:00:00",
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
-
-Run:
+- [ ] **步骤 2：运行测试确认失败**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/service -run 'Test.*Job' -count=1
 ```
 
-Expected: FAIL because proto generated structs do not yet have alert fields.
+预期：失败，因为 proto 生成结构体还没有告警字段。
 
-- [ ] **Step 3: Update job proto**
+- [ ] **步骤 3：修改 job proto**
 
-Add fields to `JobInfo`, `CreateJobRequest`, and `UpdateJobRequest` in `chronoFlow-admin/api/job/v1/job.proto`:
+在 `chronoFlow-admin/api/job/v1/job.proto` 中给 `JobInfo`、`CreateJobRequest`、`UpdateJobRequest` 增加字段：
 
 ```proto
 message JobInfo {
@@ -150,42 +150,20 @@ message UpdateJobRequest {
 }
 ```
 
-- [ ] **Step 4: Update job log proto**
+- [ ] **步骤 4：修改 job_log proto**
 
-Add fields to `JobLogInfo` in `chronoFlow-admin/api/joblog/v1/job_log.proto`:
+在 `chronoFlow-admin/api/joblog/v1/job_log.proto` 的 `JobLogInfo` 中增加字段：
 
 ```proto
-message JobLogInfo {
-  int64 id = 1;
-  int64 job_id = 2;
-  string job_name = 3;
-  int64 executor_id = 4;
-  string executor_name = 5;
-  string executor_address = 6;
-  string cron_expr = 7;
-  int32 timeout_seconds = 8;
-  string trigger_type = 9;
-  string status = 10;
-  string start_time = 11;
-  string end_time = 12;
-  int64 duration_ms = 13;
-  int32 exit_code = 14;
-  string log_path = 15;
-  int64 log_size_bytes = 16;
-  bool log_truncated = 17;
-  string error_message = 18;
-  string created_at = 19;
-  string updated_at = 20;
-  bool alert_enabled_snapshot = 21;
-  string alert_status = 22;
-  string alert_error = 23;
-  string alert_sent_at = 24;
-}
+bool alert_enabled_snapshot = 21;
+string alert_status = 22;
+string alert_error = 23;
+string alert_sent_at = 24;
 ```
 
-- [ ] **Step 5: Add system settings proto**
+- [ ] **步骤 5：新增系统设置 proto**
 
-Create `chronoFlow-admin/api/system/v1/system_settings.proto`:
+新增 `chronoFlow-admin/api/system/v1/system_settings.proto`：
 
 ```proto
 syntax = "proto3";
@@ -276,18 +254,16 @@ message ClearFeishuWebhookReply {
 }
 ```
 
-- [ ] **Step 6: Regenerate API files**
-
-Run:
+- [ ] **步骤 6：重新生成 API 文件**
 
 ```bash
 cd chronoFlow-admin
 make api
 ```
 
-Expected: generated `system_settings*.pb.go` files appear under `api/all-pb-go/v1/`, and existing job/job_log generated files include the new fields.
+预期：`api/all-pb-go/v1/` 下出现 `system_settings*.pb.go`，并且 job/job_log 生成文件包含新增字段。
 
-- [ ] **Step 7: Commit**
+- [ ] **步骤 7：提交**
 
 ```bash
 git add chronoFlow-admin/api chronoFlow-admin/openapi.yaml chronoFlow-admin/internal/service/job_test.go chronoFlow-admin/internal/service/job_log_test.go
@@ -296,25 +272,26 @@ git commit -m "feat: add alert api fields"
 
 ---
 
-## Task 2: Persist job alert switch and log alert fields
+## 任务 2：持久化任务告警开关和日志告警字段
 
-**Files:**
-- Modify: `chronoFlow-admin/internal/data/model.go`
-- Modify: `chronoFlow-admin/internal/data/data.go`
-- Modify: `chronoFlow-admin/internal/data/job.go`
-- Modify: `chronoFlow-admin/internal/data/job_log.go`
-- Modify: `chronoFlow-admin/internal/biz/job.go`
-- Modify: `chronoFlow-admin/internal/biz/job_run.go`
-- Modify: `chronoFlow-admin/internal/biz/job_log.go`
-- Modify: `chronoFlow-admin/internal/service/job.go`
-- Modify: `chronoFlow-admin/internal/service/job_log.go`
-- Test: `chronoFlow-admin/internal/data/model_test.go`
-- Test: `chronoFlow-admin/internal/biz/job_test.go`
-- Test: `chronoFlow-admin/internal/biz/job_run_test.go`
+**文件：**
 
-- [ ] **Step 1: Add failing tests for persistence mapping**
+- 修改：`chronoFlow-admin/internal/data/model.go`
+- 修改：`chronoFlow-admin/internal/data/data.go`
+- 修改：`chronoFlow-admin/internal/data/job.go`
+- 修改：`chronoFlow-admin/internal/data/job_log.go`
+- 修改：`chronoFlow-admin/internal/biz/job.go`
+- 修改：`chronoFlow-admin/internal/biz/job_run.go`
+- 修改：`chronoFlow-admin/internal/biz/job_log.go`
+- 修改：`chronoFlow-admin/internal/service/job.go`
+- 修改：`chronoFlow-admin/internal/service/job_log.go`
+- 测试：`chronoFlow-admin/internal/data/model_test.go`
+- 测试：`chronoFlow-admin/internal/biz/job_test.go`
+- 测试：`chronoFlow-admin/internal/biz/job_run_test.go`
 
-In `chronoFlow-admin/internal/data/model_test.go`, add assertions to the existing model migration/mapping tests:
+- [ ] **步骤 1：先写失败测试**
+
+在 `chronoFlow-admin/internal/data/model_test.go` 中增加迁移字段断言：
 
 ```go
 require.True(t, db.Migrator().HasColumn(&Job{}, "failure_alert_enabled"))
@@ -324,29 +301,27 @@ require.True(t, db.Migrator().HasColumn(&JobLog{}, "alert_error"))
 require.True(t, db.Migrator().HasColumn(&JobLog{}, "alert_sent_at"))
 ```
 
-In `chronoFlow-admin/internal/biz/job_test.go`, add a create/update test that sets `FailureAlertEnabled: true` and verifies the returned `Job` keeps it true.
+在 `chronoFlow-admin/internal/biz/job_test.go` 中增加 create/update 测试：传入 `FailureAlertEnabled: true`，验证返回的 `Job` 仍然为 true。
 
-In `chronoFlow-admin/internal/biz/job_run_test.go`, update the fake created log assertion:
+在 `chronoFlow-admin/internal/biz/job_run_test.go` 中断言创建运行日志时写入快照：
 
 ```go
 require.True(t, created.AlertEnabledSnapshot)
 require.Equal(t, biz.AlertStatusNone, created.AlertStatus)
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
-
-Run:
+- [ ] **步骤 2：运行测试确认失败**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/data ./internal/biz -run 'Test.*(Job|Model)' -count=1
 ```
 
-Expected: FAIL because fields and constants do not exist yet.
+预期：失败，因为字段和常量还不存在。
 
-- [ ] **Step 3: Add biz constants and fields**
+- [ ] **步骤 3：增加 biz 常量和字段**
 
-In `chronoFlow-admin/internal/biz/status.go`, add:
+在 `chronoFlow-admin/internal/biz/status.go` 中增加：
 
 ```go
 const (
@@ -358,17 +333,15 @@ const (
 )
 ```
 
-In `chronoFlow-admin/internal/biz/job.go`, add `FailureAlertEnabled bool` to:
+在 `chronoFlow-admin/internal/biz/job.go` 中给 `Job`、`CreateJobInput`、`UpdateJobInput` 增加：
 
 ```go
-type Job struct { ... }
-type CreateJobInput struct { ... }
-type UpdateJobInput struct { ... }
+FailureAlertEnabled bool
 ```
 
-Pass it through `CreateJob`, `UpdateJob`, and `normalizeJobInput`.
+并在 `CreateJob`、`UpdateJob`、`normalizeJobInput` 中传递该字段。
 
-In `chronoFlow-admin/internal/biz/job_log.go`, add fields to `JobLog`:
+在 `chronoFlow-admin/internal/biz/job_log.go` 中给 `JobLog` 增加：
 
 ```go
 AlertEnabledSnapshot bool
@@ -377,15 +350,15 @@ AlertError           string
 AlertSentAt          *time.Time
 ```
 
-- [ ] **Step 4: Add data model fields**
+- [ ] **步骤 4：增加数据模型字段**
 
-In `chronoFlow-admin/internal/data/model.go`, update `Job`:
+在 `chronoFlow-admin/internal/data/model.go` 的 `Job` 中增加：
 
 ```go
 FailureAlertEnabled bool `json:"failureAlertEnabled" gorm:"column:failure_alert_enabled;not null;default:false"`
 ```
 
-Update `JobLog`:
+在 `JobLog` 中增加：
 
 ```go
 AlertEnabledSnapshot bool       `json:"alertEnabledSnapshot" gorm:"column:alert_enabled_snapshot;not null;default:false"`
@@ -394,64 +367,49 @@ AlertError           string     `json:"alertError" gorm:"column:alert_error;type
 AlertSentAt          *time.Time `json:"alertSentAt" gorm:"column:alert_sent_at"`
 ```
 
-- [ ] **Step 5: Update migration and mappings**
+- [ ] **步骤 5：更新映射和迁移**
 
-In `chronoFlow-admin/internal/data/data.go`, `AutoMigrate` still uses `&Job{}` and `&JobLog{}`; no new model is required for this task.
+`chronoFlow-admin/internal/data/data.go` 中 `AutoMigrate` 仍然包含 `&Job{}`、`&JobLog{}`，无需新增模型。
 
-In `chronoFlow-admin/internal/data/job.go`, map `FailureAlertEnabled` both ways and preserve it in `Update`.
+在 `chronoFlow-admin/internal/data/job.go` 中双向映射 `FailureAlertEnabled`，并在 `Update` 中保留更新。
 
-In `chronoFlow-admin/internal/data/job_log.go`, map the new alert fields in:
+在 `chronoFlow-admin/internal/data/job_log.go` 中更新：
 
 - `Update`
 - `toJobLogModel`
 - `toBizJobLog`
 
-When creating a log in `toJobLogModel`, if `AlertStatus == ""`, set `AlertStatus = biz.AlertStatusNone`.
+创建日志时如果 `AlertStatus == ""`，设置为 `biz.AlertStatusNone`。
 
-- [ ] **Step 6: Snapshot alert switch when creating a job log**
+- [ ] **步骤 6：创建运行日志时写入告警快照**
 
-In `chronoFlow-admin/internal/biz/job_run.go`, update `RunJob` log creation:
+在 `chronoFlow-admin/internal/biz/job_run.go` 的 `RunJob` 中创建日志时增加：
 
 ```go
-created, err := uc.logRepo.CreateRunningIfNoActive(ctx, &JobLog{
-	JobID:                job.ID,
-	JobName:              job.Name,
-	ExecutorID:           executor.ID,
-	ExecutorName:         executor.Name,
-	ExecutorAddress:      executor.Address,
-	CronExpr:             job.CronExpr,
-	TimeoutSeconds:       job.TimeoutSeconds,
-	GlueSnapshot:         glue.Content,
-	TriggerType:          triggerType,
-	Status:               JobLogStatusRunning,
-	StartTime:            time.Now(),
-	AlertEnabledSnapshot: job.FailureAlertEnabled,
-	AlertStatus:          AlertStatusNone,
-})
+AlertEnabledSnapshot: job.FailureAlertEnabled,
+AlertStatus:          AlertStatusNone,
 ```
 
-- [ ] **Step 7: Update service mappings**
+- [ ] **步骤 7：更新 service 映射**
 
-In `chronoFlow-admin/internal/service/job.go`, map `FailureAlertEnabled` in:
+在 `chronoFlow-admin/internal/service/job.go` 中映射 `FailureAlertEnabled`：
 
 - `validateCreateJobRequest`
 - `validateUpdateJobRequest`
 - `toJobInfo`
 
-In `chronoFlow-admin/internal/service/job_log.go`, map alert fields in `toJobLogInfo`.
+在 `chronoFlow-admin/internal/service/job_log.go` 的 `toJobLogInfo` 中映射告警字段。
 
-- [ ] **Step 8: Run tests**
-
-Run:
+- [ ] **步骤 8：运行测试**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/data ./internal/biz ./internal/service -count=1
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 9: Commit**
+- [ ] **步骤 9：提交**
 
 ```bash
 git add chronoFlow-admin/internal/data chronoFlow-admin/internal/biz chronoFlow-admin/internal/service
@@ -460,76 +418,56 @@ git commit -m "feat: persist job failure alert fields"
 
 ---
 
-## Task 3: System setting storage and encrypted Feishu webhook API
+## 任务 3：系统设置存储和加密飞书 Webhook API
 
-**Files:**
-- Modify: `chronoFlow-admin/internal/data/model.go`
-- Modify: `chronoFlow-admin/internal/data/data.go`
-- Create: `chronoFlow-admin/internal/data/system_setting.go`
-- Create: `chronoFlow-admin/internal/biz/system_setting.go`
-- Create: `chronoFlow-admin/internal/service/system_settings.go`
-- Modify: `chronoFlow-admin/internal/biz/biz.go`
-- Modify: `chronoFlow-admin/internal/data/data.go`
-- Modify: `chronoFlow-admin/internal/service/service.go`
-- Modify: `chronoFlow-admin/cmd/chronoFlow-admin/wire.go`
-- Modify: generated `wire_gen.go`
-- Test: `chronoFlow-admin/internal/data/system_setting_test.go`
-- Test: `chronoFlow-admin/internal/biz/system_setting_test.go`
-- Test: `chronoFlow-admin/internal/service/system_settings_test.go`
+**文件：**
 
-- [ ] **Step 1: Write failing tests**
+- 修改：`chronoFlow-admin/internal/data/model.go`
+- 修改：`chronoFlow-admin/internal/data/data.go`
+- 新增：`chronoFlow-admin/internal/data/system_setting.go`
+- 新增：`chronoFlow-admin/internal/biz/system_setting.go`
+- 新增：`chronoFlow-admin/internal/service/system_settings.go`
+- 修改：`chronoFlow-admin/internal/biz/biz.go`
+- 修改：`chronoFlow-admin/internal/data/data.go`
+- 修改：`chronoFlow-admin/internal/service/service.go`
+- 修改：`chronoFlow-admin/cmd/chronoFlow-admin/wire.go`
+- 修改：`chronoFlow-admin/cmd/chronoFlow-admin/wire_gen.go`
+- 测试：`chronoFlow-admin/internal/data/system_setting_test.go`
+- 测试：`chronoFlow-admin/internal/biz/system_setting_test.go`
+- 测试：`chronoFlow-admin/internal/service/system_settings_test.go`
 
-Create `chronoFlow-admin/internal/biz/system_setting_test.go` with tests:
+- [ ] **步骤 1：写失败测试**
 
-```go
-func TestSystemSettingUsecase_SaveGetAndClearFeishuWebhook(t *testing.T) {
-	ctx := context.Background()
-	repo := newFakeSystemSettingRepo()
-	cipher := security.NewTokenCipherForTest("12345678901234567890123456789012")
-	uc := biz.NewSystemSettingUsecase(repo, cipher, log.NewStdLogger(io.Discard))
+新增 `chronoFlow-admin/internal/biz/system_setting_test.go`，覆盖保存、查询、清空 Webhook，以及无效 URL。
 
-	settings, err := uc.SaveFeishuWebhook(ctx, "https://open.feishu.cn/open-apis/bot/v2/hook/abc")
-	require.NoError(t, err)
-	require.True(t, settings.FeishuWebhookConfigured)
-	require.NotEmpty(t, settings.FeishuWebhookUpdatedAt)
-	require.NotContains(t, repo.savedCiphertext, "open.feishu.cn")
-
-	settings, err = uc.GetAlertSettings(ctx)
-	require.NoError(t, err)
-	require.True(t, settings.FeishuWebhookConfigured)
-
-	settings, err = uc.ClearFeishuWebhook(ctx)
-	require.NoError(t, err)
-	require.False(t, settings.FeishuWebhookConfigured)
-}
-```
-
-Create a second test:
+核心断言：
 
 ```go
-func TestSystemSettingUsecase_SaveFeishuWebhookRejectsInvalidURL(t *testing.T) {
-	uc := biz.NewSystemSettingUsecase(newFakeSystemSettingRepo(), fakeCipher{}, log.NewStdLogger(io.Discard))
-	_, err := uc.SaveFeishuWebhook(context.Background(), "not-url")
-	require.Error(t, err)
-}
+settings, err := uc.SaveFeishuWebhook(ctx, "https://open.feishu.cn/open-apis/bot/v2/hook/abc")
+require.NoError(t, err)
+require.True(t, settings.FeishuWebhookConfigured)
+require.NotContains(t, repo.savedCiphertext, "open.feishu.cn")
 ```
 
-Use small local fakes in the test file rather than a database.
+无效 URL：
 
-- [ ] **Step 2: Run tests and verify failure**
+```go
+_, err := uc.SaveFeishuWebhook(context.Background(), "not-url")
+require.Error(t, err)
+```
 
-Run:
+- [ ] **步骤 2：运行测试确认失败**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/biz -run TestSystemSettingUsecase -count=1
 ```
 
-Expected: FAIL because usecase does not exist.
+预期：失败，因为 usecase 还不存在。
 
-- [ ] **Step 3: Add system setting model and repo**
+- [ ] **步骤 3：增加 system_settings 模型和仓储**
 
-In `chronoFlow-admin/internal/data/model.go`, add:
+在 `chronoFlow-admin/internal/data/model.go` 中增加：
 
 ```go
 type SystemSetting struct {
@@ -544,9 +482,9 @@ func (SystemSetting) TableName() string {
 }
 ```
 
-In `chronoFlow-admin/internal/data/data.go`, add `&SystemSetting{}` to `AutoMigrate`.
+在 `chronoFlow-admin/internal/data/data.go` 的 `AutoMigrate` 中增加 `&SystemSetting{}`。
 
-Create `chronoFlow-admin/internal/data/system_setting.go` with:
+新增 `chronoFlow-admin/internal/data/system_setting.go`，实现：
 
 ```go
 type SystemSettingRepo struct {
@@ -557,15 +495,13 @@ type SystemSettingRepo struct {
 func NewSystemSettingRepo(data *Data, logger log.Logger) *SystemSettingRepo
 func (r *SystemSettingRepo) GetByKey(ctx context.Context, key string) (*biz.SystemSetting, error)
 func (r *SystemSettingRepo) Upsert(ctx context.Context, setting *biz.SystemSetting) (*biz.SystemSetting, error)
-func toBizSystemSetting(model *SystemSetting) *biz.SystemSetting
-func toSystemSettingModel(setting *biz.SystemSetting) *SystemSetting
 ```
 
-`Upsert` should use `clause.OnConflict` on `setting_key` and update `value_encrypted`.
+`Upsert` 使用 `clause.OnConflict`，根据 `setting_key` 冲突更新 `value_encrypted`。
 
-- [ ] **Step 4: Add biz usecase**
+- [ ] **步骤 4：增加 biz usecase**
 
-Create `chronoFlow-admin/internal/biz/system_setting.go` with:
+新增 `chronoFlow-admin/internal/biz/system_setting.go`，包含：
 
 ```go
 const FeishuWebhookSettingKey = "alert.feishu.webhook"
@@ -582,78 +518,72 @@ type AlertSettings struct {
 	FeishuWebhookConfigured bool
 	FeishuWebhookUpdatedAt  time.Time
 }
+```
 
-type SystemSettingRepo interface {
-	GetByKey(context.Context, string) (*SystemSetting, error)
-	Upsert(context.Context, *SystemSetting) (*SystemSetting, error)
-}
+实现：
 
-type SystemSettingUsecase struct { ... }
-
+```go
 func (uc *SystemSettingUsecase) GetAlertSettings(ctx context.Context) (*AlertSettings, error)
 func (uc *SystemSettingUsecase) SaveFeishuWebhook(ctx context.Context, webhook string) (*AlertSettings, error)
 func (uc *SystemSettingUsecase) ClearFeishuWebhook(ctx context.Context) (*AlertSettings, error)
 func (uc *SystemSettingUsecase) GetFeishuWebhook(ctx context.Context) (string, bool, error)
 ```
 
-Validate URL with `url.ParseRequestURI` and require `http` or `https`.
+URL 校验使用 `url.ParseRequestURI`，只允许 `http` 或 `https`。
 
-- [ ] **Step 5: Add service**
+- [ ] **步骤 5：增加 service**
 
-Create `chronoFlow-admin/internal/service/system_settings.go` implementing:
+新增 `chronoFlow-admin/internal/service/system_settings.go`，实现：
 
 ```go
 type SystemSettingsService struct {
 	v1.UnimplementedSystemSettingsServer
-	uc *biz.SystemSettingUsecase
+	uc      *biz.SystemSettingUsecase
 	alertUC *biz.AlertUsecase
 }
-
-func NewSystemSettingsService(uc *biz.SystemSettingUsecase, alertUC *biz.AlertUsecase) *SystemSettingsService
-func (s *SystemSettingsService) GetAlertSettings(...)
-func (s *SystemSettingsService) SaveFeishuWebhook(...)
-func (s *SystemSettingsService) TestFeishuWebhook(...)
-func (s *SystemSettingsService) ClearFeishuWebhook(...)
 ```
 
-For this task, `TestFeishuWebhook` can temporarily return not implemented until `AlertUsecase` exists in Task 4. If implementing before Task 4, create a narrow interface:
+实现接口：
 
-```go
-type FeishuTester interface {
-	SendTestFeishuAlert(context.Context) error
-}
-```
+- `GetAlertSettings`
+- `SaveFeishuWebhook`
+- `TestFeishuWebhook`
+- `ClearFeishuWebhook`
 
-and pass nil safely until Task 4.
+如果此任务先于告警发送器实现，`TestFeishuWebhook` 可以暂时通过窄接口或 nil 检查处理，任务 4 再接入真实发送。
 
-- [ ] **Step 6: Wire providers**
+- [ ] **步骤 6：更新依赖注入和路由注册**
 
-Update provider sets:
+更新：
 
-- Add `NewSystemSettingRepo` and binding in `internal/data/data.go`.
-- Add `NewSystemSettingUsecase` in `internal/biz/biz.go`.
-- Add `NewSystemSettingsService` in `internal/service/service.go`.
-- Add registration in `internal/server/http.go` and `internal/server/grpc.go` using generated `RegisterSystemSettingsHTTPServer` and `RegisterSystemSettingsServer`.
+- `internal/data/data.go`
+- `internal/biz/biz.go`
+- `internal/service/service.go`
+- `internal/server/http.go`
+- `internal/server/grpc.go`
 
-Run:
+注册生成的：
+
+- `RegisterSystemSettingsHTTPServer`
+- `RegisterSystemSettingsServer`
+
+运行：
 
 ```bash
 cd chronoFlow-admin
 make wire
 ```
 
-- [ ] **Step 7: Run tests**
-
-Run:
+- [ ] **步骤 7：运行测试**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/data ./internal/biz ./internal/service -run 'Test.*SystemSetting|Test.*SystemSettings' -count=1
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 8: Commit**
+- [ ] **步骤 8：提交**
 
 ```bash
 git add chronoFlow-admin/api chronoFlow-admin/internal chronoFlow-admin/cmd/chronoFlow-admin
@@ -662,88 +592,45 @@ git commit -m "feat: add encrypted alert settings api"
 
 ---
 
-## Task 4: Feishu card sender and alert usecase
+## 任务 4：飞书卡片发送器和告警 Usecase
 
-**Files:**
-- Create: `chronoFlow-admin/internal/biz/feishu_alert.go`
-- Create: `chronoFlow-admin/internal/biz/alert.go`
-- Modify: `chronoFlow-admin/internal/biz/biz.go`
-- Modify: `chronoFlow-admin/internal/service/system_settings.go`
-- Test: `chronoFlow-admin/internal/biz/feishu_alert_test.go`
-- Test: `chronoFlow-admin/internal/biz/alert_test.go`
+**文件：**
 
-- [ ] **Step 1: Write failing Feishu payload tests**
+- 新增：`chronoFlow-admin/internal/biz/feishu_alert.go`
+- 新增：`chronoFlow-admin/internal/biz/alert.go`
+- 修改：`chronoFlow-admin/internal/biz/biz.go`
+- 修改：`chronoFlow-admin/internal/service/system_settings.go`
+- 测试：`chronoFlow-admin/internal/biz/feishu_alert_test.go`
+- 测试：`chronoFlow-admin/internal/biz/alert_test.go`
 
-Create `chronoFlow-admin/internal/biz/feishu_alert_test.go`:
+- [ ] **步骤 1：写飞书卡片 payload 失败测试**
 
-```go
-func TestBuildFeishuAlertCardTruncatesErrorAndUsesTitle(t *testing.T) {
-	longErr := strings.Repeat("x", 600)
-	card := buildFeishuAlertCard(FeishuAlertCardInput{
-		Title:        "ChronoFlow 任务执行失败",
-		JobName:      "daily-report",
-		ExecutorName: "exec-1",
-		LogID:        42,
-		Status:       JobLogStatusFailed,
-		StartTime:    time.Date(2026, 6, 30, 10, 0, 0, 0, time.FixedZone("CST", 8*3600)),
-		EndTime:      time.Date(2026, 6, 30, 10, 0, 5, 0, time.FixedZone("CST", 8*3600)),
-		DurationMS:   5000,
-		ExitCode:     ptrInt32(1),
-		ErrorMessage: longErr,
-	})
+新增 `chronoFlow-admin/internal/biz/feishu_alert_test.go`，验证：
 
-	body, err := json.Marshal(card)
-	require.NoError(t, err)
-	require.Contains(t, string(body), "ChronoFlow 任务执行失败")
-	require.Contains(t, string(body), "daily-report")
-	require.Contains(t, string(body), "日志 ID")
-	require.NotContains(t, string(body), strings.Repeat("x", 520))
-	require.Contains(t, string(body), "...")
-}
-```
+- 标题包含 `ChronoFlow 任务执行失败`
+- 包含任务名称
+- 包含日志 ID
+- 错误信息超过 500 字符会截断并追加 `...`
 
-- [ ] **Step 2: Write failing sender retry tests**
+- [ ] **步骤 2：写发送重试失败测试**
 
-In `chronoFlow-admin/internal/biz/alert_test.go`, create a fake HTTP server that fails twice then succeeds:
+在 `chronoFlow-admin/internal/biz/alert_test.go` 中使用 `httptest.NewServer`，前两次返回 500，第三次成功，断言：
 
-```go
-func TestAlertUsecaseSendRetriesAndMarksSent(t *testing.T) {
-	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if calls.Add(1) < 3 {
-			http.Error(w, "temporary", http.StatusInternalServerError)
-			return
-		}
-		_, _ = w.Write([]byte(`{"StatusCode":0,"msg":"success"}`))
-	}))
-	defer server.Close()
+- 实际请求 3 次
+- 最终 `alert_status=sent`
 
-	settings := fakeSettings{webhook: server.URL}
-	repo := newFakeAlertLogRepo(logWithStatus(JobLogStatusFailed, true))
-	uc := biz.NewAlertUsecase(repo, settings, biz.NewFeishuAlertSender(server.Client()), log.NewStdLogger(io.Discard))
-
-	uc.DispatchJobLogAlert(context.Background(), 1)
-	require.Eventually(t, func() bool {
-		return repo.status == biz.AlertStatusSent
-	}, time.Second, 10*time.Millisecond)
-	require.Equal(t, int32(3), calls.Load())
-}
-```
-
-- [ ] **Step 3: Run tests and verify failure**
-
-Run:
+- [ ] **步骤 3：运行测试确认失败**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/biz -run 'Test.*Alert|Test.*Feishu' -count=1
 ```
 
-Expected: FAIL because alert sender does not exist.
+预期：失败，因为发送器和告警 usecase 不存在。
 
-- [ ] **Step 4: Implement Feishu card builder and sender**
+- [ ] **步骤 4：实现飞书卡片构建和发送器**
 
-Create `chronoFlow-admin/internal/biz/feishu_alert.go` with:
+新增 `chronoFlow-admin/internal/biz/feishu_alert.go`，包含：
 
 ```go
 type FeishuAlertSender struct {
@@ -754,18 +641,18 @@ func NewFeishuAlertSender() *FeishuAlertSender
 func (s *FeishuAlertSender) SendCard(ctx context.Context, webhook string, payload any) error
 ```
 
-Use JSON body:
+请求体使用：
 
 ```json
 {
   "msg_type": "interactive",
-  "card": { ... }
+  "card": {}
 }
 ```
 
-Accept HTTP 2xx only. Also parse common Feishu response fields `StatusCode`, `code`, `msg`, and treat non-zero as error.
+仅接受 HTTP 2xx。解析飞书常见响应字段 `StatusCode`、`code`、`msg`，非 0 视为失败。
 
-Add card builder helpers:
+同时实现：
 
 ```go
 type FeishuAlertCardInput struct { ... }
@@ -774,9 +661,9 @@ func buildFeishuAlertCard(input FeishuAlertCardInput) map[string]any
 func truncateAlertError(message string) string
 ```
 
-- [ ] **Step 5: Implement AlertUsecase**
+- [ ] **步骤 5：实现 AlertUsecase**
 
-Create `chronoFlow-admin/internal/biz/alert.go`:
+新增 `chronoFlow-admin/internal/biz/alert.go`，包含：
 
 ```go
 type AlertJobLogRepo interface {
@@ -791,73 +678,62 @@ type AlertJobLogRepo interface {
 type AlertSettingsProvider interface {
 	GetFeishuWebhook(context.Context) (string, bool, error)
 }
+```
 
-type AlertUsecase struct { ... }
+实现：
 
+```go
 func (uc *AlertUsecase) DispatchJobLogAlert(ctx context.Context, logID int64)
 func (uc *AlertUsecase) SendTestFeishuAlert(ctx context.Context) error
 func (uc *AlertUsecase) MarkPendingAlertsFailedOnStartup(ctx context.Context) error
 ```
 
-`DispatchJobLogAlert` should:
-
-1. Load job log.
-2. Return if log is nil.
-3. Return if `AlertStatus` is already `pending`, `sent`, `failed`, or `skipped`.
-4. Return if `AlertEnabledSnapshot` is false; set `skipped` with reason if desired by design.
-5. Return if status is not `failed` or `timeout`; set `none`.
-6. Check webhook; if not configured, mark skipped.
-7. Mark pending.
-8. Start goroutine that retries 3 times with 2 second interval.
-
-For tests, keep retry interval injectable:
+生产默认：
 
 ```go
-type AlertConfig struct {
-	MaxAttempts int
-	RetryDelay  time.Duration
-}
+MaxAttempts = 3
+RetryDelay = 2 * time.Second
 ```
 
-Production default: `MaxAttempts=3`, `RetryDelay=2*time.Second`.
+测试中允许注入更短的重试间隔。
 
-- [ ] **Step 6: Implement repo alert update methods**
+- [ ] **步骤 6：实现 JobLogRepo 告警更新方法**
 
-In `chronoFlow-admin/internal/data/job_log.go`, add methods required by `AlertJobLogRepo`.
+在 `chronoFlow-admin/internal/data/job_log.go` 中实现 `AlertJobLogRepo` 所需方法。
 
-Use conditional updates to prevent duplicate send:
+为避免重复发送，`MarkAlertPending` 使用条件更新：
 
 ```go
-Where("id = ? AND alert_status IN ?", logID, []string{biz.AlertStatusNone, ""})
+WHERE id = ? AND alert_status IN ('', 'none')
 ```
 
-- [ ] **Step 7: Connect test send API**
+- [ ] **步骤 7：接入测试发送 API**
 
-Update `chronoFlow-admin/internal/service/system_settings.go` `TestFeishuWebhook` to call `alertUC.SendTestFeishuAlert(ctx)`.
+在 `chronoFlow-admin/internal/service/system_settings.go` 中，让 `TestFeishuWebhook` 调用：
 
-- [ ] **Step 8: Wire provider**
+```go
+alertUC.SendTestFeishuAlert(ctx)
+```
 
-Add `NewFeishuAlertSender`, `NewAlertUsecase`, and repo binding to `biz.ProviderSet` / `data.ProviderSet`.
+- [ ] **步骤 8：更新依赖注入**
 
-Run:
+把 `NewFeishuAlertSender`、`NewAlertUsecase` 以及相关 repo 绑定加入 ProviderSet，然后运行：
 
 ```bash
 cd chronoFlow-admin
 make wire
 ```
 
-- [ ] **Step 9: Run tests**
-
-Run:
+- [ ] **步骤 9：运行测试**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/biz ./internal/data ./internal/service -run 'Test.*Alert|Test.*Feishu|Test.*SystemSetting' -count=1
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 10: Commit**
+- [ ] **步骤 10：提交**
 
 ```bash
 git add chronoFlow-admin/internal chronoFlow-admin/cmd/chronoFlow-admin
@@ -866,64 +742,38 @@ git commit -m "feat: add feishu alert sender"
 
 ---
 
-## Task 5: Trigger alerts from callbacks, direct run failures, and recovery
+## 任务 5：从 callback、直接运行失败和恢复流程触发告警
 
-**Files:**
-- Modify: `chronoFlow-admin/internal/biz/callback.go`
-- Modify: `chronoFlow-admin/internal/biz/job_run.go`
-- Modify: `chronoFlow-admin/internal/biz/maintenance.go`
-- Modify: `chronoFlow-admin/internal/worker/server.go`
-- Test: `chronoFlow-admin/internal/biz/callback_test.go`
-- Test: `chronoFlow-admin/internal/biz/job_run_test.go`
-- Test: `chronoFlow-admin/internal/biz/maintenance_test.go`
+**文件：**
 
-- [ ] **Step 1: Write failing callback trigger test**
+- 修改：`chronoFlow-admin/internal/biz/callback.go`
+- 修改：`chronoFlow-admin/internal/biz/job_run.go`
+- 修改：`chronoFlow-admin/internal/biz/maintenance.go`
+- 修改：`chronoFlow-admin/internal/worker/server.go`
+- 测试：`chronoFlow-admin/internal/biz/callback_test.go`
+- 测试：`chronoFlow-admin/internal/biz/job_run_test.go`
+- 测试：`chronoFlow-admin/internal/biz/maintenance_test.go`
 
-In `chronoFlow-admin/internal/biz/callback_test.go`, add:
+- [ ] **步骤 1：写 callback 触发告警失败测试**
 
-```go
-func TestCallbackUsecaseDispatchesAlertWhenFinalFailed(t *testing.T) {
-	alerts := &fakeAlertDispatcher{}
-	uc := NewCallbackUsecase(logRepo, store, CallbackConfig{MaxLogBytes: 1024}, log.NewStdLogger(io.Discard))
-	uc.alerts = alerts
+在 `callback_test.go` 中添加测试：当 callback 最终状态为 `failed` 时，断言 fake alert dispatcher 收到对应 `log_id`。
 
-	_, err := uc.ApplyCallback(context.Background(), &CallbackInput{
-		LogID: 1, JobID: 10, Status: JobLogStatusFailed, ExitCode: 1,
-		ErrorMessage: "boom",
-	})
-	require.NoError(t, err)
-	require.Equal(t, []int64{1}, alerts.dispatched)
-}
-```
+- [ ] **步骤 2：写 success 不触发测试**
 
-Use the existing fake repo style and inject alert dispatcher through constructor rather than direct field if possible.
+添加测试：当 callback 状态为 `success` 时，不触发告警。
 
-- [ ] **Step 2: Write non-trigger test**
-
-Add:
-
-```go
-func TestCallbackUsecaseDoesNotDispatchAlertWhenSuccess(t *testing.T) {
-	alerts := &fakeAlertDispatcher{}
-	// callback status success
-	require.Empty(t, alerts.dispatched)
-}
-```
-
-- [ ] **Step 3: Run tests and verify failure**
-
-Run:
+- [ ] **步骤 3：运行测试确认失败**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/biz -run 'TestCallbackUsecase.*Alert|TestJobRunUsecase.*Alert|TestMaintenance.*Alert' -count=1
 ```
 
-Expected: FAIL because callback does not dispatch alerts.
+预期：失败，因为 callback 尚未触发告警。
 
-- [ ] **Step 4: Add alert dispatcher interface**
+- [ ] **步骤 4：增加 AlertDispatcher 接口**
 
-In `chronoFlow-admin/internal/biz/alert.go`, add:
+在 `chronoFlow-admin/internal/biz/alert.go` 中增加：
 
 ```go
 type AlertDispatcher interface {
@@ -932,17 +782,13 @@ type AlertDispatcher interface {
 }
 ```
 
-`AlertUsecase` implements it.
+`AlertUsecase` 实现该接口。
 
-- [ ] **Step 5: Inject alert dispatcher into callback**
+- [ ] **步骤 5：callback 注入 alert dispatcher**
 
-Modify `CallbackUsecase` constructor:
+修改 `NewCallbackUsecase` 构造函数，增加 `alerts AlertDispatcher`。
 
-```go
-func NewCallbackUsecase(logRepo JobRunLogRepo, store LogWriter, alerts AlertDispatcher, config CallbackConfig, logger log.Logger) *CallbackUsecase
-```
-
-After successful update in `ApplyCallback`, call:
+在 `ApplyCallback` 成功更新最终状态后：
 
 ```go
 if ShouldTriggerFailureAlert(updated.Status) && uc.alerts != nil {
@@ -950,60 +796,54 @@ if ShouldTriggerFailureAlert(updated.Status) && uc.alerts != nil {
 }
 ```
 
-Use `context.Background()` for goroutine-safe async work; do not let request cancellation stop alert sending after callback response.
+使用 `context.Background()`，避免请求取消影响异步告警发送。
 
-- [ ] **Step 6: Trigger alerts for direct dispatch failures**
+- [ ] **步骤 6：直接调度失败触发告警**
 
-In `JobRunUsecase.markLogFailed`, after updating log to failed, dispatch alert if `uc.alerts != nil`.
+在 `JobRunUsecase.markLogFailed` 中，更新日志为 `failed` 后触发告警。
 
-Update `NewJobRunUsecase` to accept `AlertDispatcher`.
+同时修改 `NewJobRunUsecase`，注入 `AlertDispatcher`。
 
-- [ ] **Step 7: Trigger alerts for recovery failures**
+- [ ] **步骤 7：恢复失败触发告警**
 
-Current repo methods `MarkAllActiveLogsFailed` and related bulk update do not return log IDs. Replace or supplement them with methods that return affected IDs:
+当前批量方法不返回受影响日志 ID，需要补充返回 ID 的方法，例如：
 
 ```go
 MarkAllActiveLogsFailedReturningIDs(ctx, message string) ([]int64, error)
 MarkKillingTimeoutLogsFailedReturningIDs(ctx, timeoutSeconds int32, message string) ([]int64, error)
 ```
 
-After marking failed in maintenance/recovery, dispatch alert for each affected log ID.
+恢复或 killing 超时标记失败后，对每个返回的 log ID 触发告警。
 
-- [ ] **Step 8: Mark pending alerts failed on startup**
+- [ ] **步骤 8：启动时清理 pending 告警**
 
-In `chronoFlow-admin/internal/worker/server.go`, call:
+在 `chronoFlow-admin/internal/worker/server.go` 启动流程中调用：
 
 ```go
-if alerts != nil {
-	_ = alerts.MarkPendingAlertsFailedOnStartup(ctx)
-}
+_ = alerts.MarkPendingAlertsFailedOnStartup(ctx)
 ```
 
-Place this near existing startup recovery/maintenance initialization so stale pending alerts are cleaned once Admin starts.
+把历史 `alert_status=pending` 标记为 failed，错误信息为“Admin 重启，告警发送结果未知”。
 
-- [ ] **Step 9: Run focused tests**
-
-Run:
+- [ ] **步骤 9：运行聚焦测试**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/biz ./internal/worker -run 'Test.*Alert|Test.*Recovery|Test.*Maintenance' -count=1
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 10: Run broader backend tests**
-
-Run:
+- [ ] **步骤 10：运行后端完整测试**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/... -count=1
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 11: Commit**
+- [ ] **步骤 11：提交**
 
 ```bash
 git add chronoFlow-admin/internal chronoFlow-admin/cmd/chronoFlow-admin
@@ -1012,50 +852,48 @@ git commit -m "feat: trigger alerts from failed jobs"
 
 ---
 
-## Task 6: Frontend API types and job alert switch
+## 任务 6：前端任务告警开关
 
-**Files:**
-- Modify: `chronoFlow-ui/src/types/job.ts`
-- Modify: `chronoFlow-ui/src/api/jobs.ts`
-- Modify: `chronoFlow-ui/src/stores/jobs.ts`
-- Modify: `chronoFlow-ui/src/views/jobs/JobListView.vue`
-- Test: `chronoFlow-ui`
+**文件：**
 
-- [ ] **Step 1: Add frontend types**
+- 修改：`chronoFlow-ui/src/types/job.ts`
+- 修改：`chronoFlow-ui/src/api/jobs.ts`
+- 修改：`chronoFlow-ui/src/stores/jobs.ts`
+- 修改：`chronoFlow-ui/src/views/jobs/JobListView.vue`
 
-In `chronoFlow-ui/src/types/job.ts`, add:
+- [ ] **步骤 1：增加前端类型**
+
+在 `chronoFlow-ui/src/types/job.ts` 中给 `Job`、`CreateJobPayload`、`UpdateJobPayload` 增加：
 
 ```ts
 failureAlertEnabled: boolean
 ```
 
-to `Job`, `CreateJobPayload`, and `UpdateJobPayload`.
+- [ ] **步骤 2：更新 API 映射**
 
-- [ ] **Step 2: Update API mapping**
-
-In `chronoFlow-ui/src/api/jobs.ts`, map backend snake_case:
+在 `chronoFlow-ui/src/api/jobs.ts` 中映射后端字段：
 
 ```ts
 failureAlertEnabled: item.failure_alert_enabled ?? false
 ```
 
-When sending create/update:
+创建/更新时发送：
 
 ```ts
 failure_alert_enabled: payload.failureAlertEnabled,
 ```
 
-- [ ] **Step 3: Update store defaults**
+- [ ] **步骤 3：更新 store 默认值**
 
-In `chronoFlow-ui/src/stores/jobs.ts`, ensure new job defaults include:
+在 `chronoFlow-ui/src/stores/jobs.ts` 中给新建任务默认值增加：
 
 ```ts
 failureAlertEnabled: false,
 ```
 
-- [ ] **Step 4: Update job form**
+- [ ] **步骤 4：更新任务表单**
 
-In `chronoFlow-ui/src/views/jobs/JobListView.vue`, add form field:
+在 `chronoFlow-ui/src/views/jobs/JobListView.vue` 中增加表单项：
 
 ```vue
 <a-form-item label="失败告警" name="failureAlertEnabled">
@@ -1064,35 +902,40 @@ In `chronoFlow-ui/src/views/jobs/JobListView.vue`, add form field:
 </a-form-item>
 ```
 
-Ensure edit form initializes from selected job.
+编辑任务时从当前任务初始化该值。
 
-- [ ] **Step 5: Update job table**
+- [ ] **步骤 5：更新任务列表**
 
-In `JobListView.vue`, add a “失败告警” column before “说明”.
+在任务列表“说明”前新增“失败告警”列。
 
-Render:
+开启时显示：
 
 ```vue
-<a-tooltip v-if="record.failureAlertEnabled" title="开启后，任务失败或超时时发送飞书告警。若系统设置未配置 Webhook，失败时不会发送。">
-  <a-tag color="blue">开启</a-tag>
-</a-tooltip>
-<a-tag v-else>关闭</a-tag>
+<a-tag color="blue">开启</a-tag>
 ```
 
-If settings API is available in this task, fetch `feishuWebhookConfigured` and use a warning tooltip when false. If not, leave generic tooltip and refine in Task 7.
+关闭时显示：
 
-- [ ] **Step 6: Build frontend**
+```vue
+<a-tag>关闭</a-tag>
+```
 
-Run:
+如果此时已能查询系统设置，则在 Webhook 未配置时展示提示：
+
+```text
+系统设置未配置飞书 Webhook，失败时不会发送。
+```
+
+- [ ] **步骤 6：构建前端**
 
 ```bash
 cd chronoFlow-ui
 npm run build
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 7: Commit**
+- [ ] **步骤 7：提交**
 
 ```bash
 git add chronoFlow-ui/src/types/job.ts chronoFlow-ui/src/api/jobs.ts chronoFlow-ui/src/stores/jobs.ts chronoFlow-ui/src/views/jobs/JobListView.vue
@@ -1101,18 +944,18 @@ git commit -m "feat: add job alert switch ui"
 
 ---
 
-## Task 7: Frontend system settings page
+## 任务 7：前端系统设置页面
 
-**Files:**
-- Create: `chronoFlow-ui/src/types/systemSettings.ts`
-- Create: `chronoFlow-ui/src/api/systemSettings.ts`
-- Modify: `chronoFlow-ui/src/views/settings/SettingsView.vue`
-- Modify: `chronoFlow-ui/src/views/jobs/JobListView.vue`
-- Test: `chronoFlow-ui`
+**文件：**
 
-- [ ] **Step 1: Add system settings types**
+- 新增：`chronoFlow-ui/src/types/systemSettings.ts`
+- 新增：`chronoFlow-ui/src/api/systemSettings.ts`
+- 修改：`chronoFlow-ui/src/views/settings/SettingsView.vue`
+- 修改：`chronoFlow-ui/src/views/jobs/JobListView.vue`
 
-Create `chronoFlow-ui/src/types/systemSettings.ts`:
+- [ ] **步骤 1：增加系统设置类型**
+
+新增 `chronoFlow-ui/src/types/systemSettings.ts`：
 
 ```ts
 export interface AlertSettings {
@@ -1125,9 +968,9 @@ export interface SaveFeishuWebhookPayload {
 }
 ```
 
-- [ ] **Step 2: Add system settings API**
+- [ ] **步骤 2：增加系统设置 API**
 
-Create `chronoFlow-ui/src/api/systemSettings.ts`:
+新增 `chronoFlow-ui/src/api/systemSettings.ts`：
 
 ```ts
 import { http } from './request'
@@ -1162,49 +1005,37 @@ export async function clearFeishuWebhook(): Promise<AlertSettings> {
 }
 ```
 
-- [ ] **Step 3: Replace settings placeholder page**
+- [ ] **步骤 3：替换系统设置占位页**
 
-Rewrite `chronoFlow-ui/src/views/settings/SettingsView.vue` to include:
+重写 `chronoFlow-ui/src/views/settings/SettingsView.vue`，包含：
 
-- Page title “系统设置”
-- Feishu alert settings section
-- Status tag: 已配置 / 未配置
-- Updated time display
-- Password input with eye icon support from Ant Design Vue
-- Save button
-- Test send button disabled when not configured
-- Clear button with confirm
-- Explanation alert for Feishu robot creation and V1 no Secret support
+- 页面标题“系统设置”
+- 飞书告警配置区域
+- 状态标签：已配置 / 未配置
+- 更新时间
+- 密码输入框
+- 保存按钮
+- 测试发送按钮
+- 清空配置按钮和确认弹窗
+- 飞书机器人配置说明
+- V1 不支持签名 Secret 的说明
 
-Use existing visual style from other views: `PageHeaderBar`, `a-card`, `a-alert`, `a-space`.
+复用现有风格：`PageHeaderBar`、`a-card`、`a-alert`、`a-space`。
 
-- [ ] **Step 4: Use settings status in job list tooltip**
+- [ ] **步骤 4：任务列表使用系统设置状态**
 
-In `JobListView.vue`, call `getAlertSettings()` on mount and use the result for tooltip:
+在 `JobListView.vue` 中加载 `getAlertSettings()`，用于已开启告警但 Webhook 未配置时展示更准确提示。
 
-```ts
-const alertSettings = ref<AlertSettings | null>(null)
-const feishuWebhookConfigured = computed(() => alertSettings.value?.feishuWebhookConfigured ?? false)
-```
-
-Tooltip for enabled alert and missing webhook:
-
-```text
-系统设置未配置飞书 Webhook，失败时不会发送。
-```
-
-- [ ] **Step 5: Build frontend**
-
-Run:
+- [ ] **步骤 5：构建前端**
 
 ```bash
 cd chronoFlow-ui
 npm run build
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 6: Commit**
+- [ ] **步骤 6：提交**
 
 ```bash
 git add chronoFlow-ui/src/types/systemSettings.ts chronoFlow-ui/src/api/systemSettings.ts chronoFlow-ui/src/views/settings/SettingsView.vue chronoFlow-ui/src/views/jobs/JobListView.vue
@@ -1213,18 +1044,18 @@ git commit -m "feat: add alert settings ui"
 
 ---
 
-## Task 8: Frontend job log alert status display
+## 任务 8：前端日志详情展示告警状态
 
-**Files:**
-- Modify: `chronoFlow-ui/src/types/jobLog.ts`
-- Modify: `chronoFlow-ui/src/api/jobLogs.ts`
-- Modify: `chronoFlow-ui/src/stores/jobLogs.ts`
-- Modify: `chronoFlow-ui/src/views/logs/JobLogDetailView.vue`
-- Test: `chronoFlow-ui`
+**文件：**
 
-- [ ] **Step 1: Add job log alert fields**
+- 修改：`chronoFlow-ui/src/types/jobLog.ts`
+- 修改：`chronoFlow-ui/src/api/jobLogs.ts`
+- 修改：`chronoFlow-ui/src/stores/jobLogs.ts`
+- 修改：`chronoFlow-ui/src/views/logs/JobLogDetailView.vue`
 
-In `chronoFlow-ui/src/types/jobLog.ts`, add:
+- [ ] **步骤 1：增加日志告警字段类型**
+
+在 `chronoFlow-ui/src/types/jobLog.ts` 中增加：
 
 ```ts
 alertEnabledSnapshot: boolean
@@ -1233,9 +1064,9 @@ alertError: string
 alertSentAt: string
 ```
 
-- [ ] **Step 2: Map API fields**
+- [ ] **步骤 2：映射 API 字段**
 
-In `chronoFlow-ui/src/api/jobLogs.ts`, map:
+在 `chronoFlow-ui/src/api/jobLogs.ts` 中映射：
 
 ```ts
 alertEnabledSnapshot: Boolean(item.alert_enabled_snapshot),
@@ -1244,9 +1075,9 @@ alertError: item.alert_error || '',
 alertSentAt: item.alert_sent_at || '',
 ```
 
-- [ ] **Step 3: Add display helpers**
+- [ ] **步骤 3：增加展示辅助函数**
 
-In `JobLogDetailView.vue`, add helper:
+在 `JobLogDetailView.vue` 中增加：
 
 ```ts
 function alertStatusText(log: JobLog): string {
@@ -1259,9 +1090,9 @@ function alertStatusText(log: JobLog): string {
 }
 ```
 
-- [ ] **Step 4: Render alert status in detail**
+- [ ] **步骤 4：日志详情页面展示失败告警**
 
-Add a row near execution status/error info:
+在执行状态/错误信息附近增加：
 
 ```vue
 <a-descriptions-item label="失败告警">
@@ -1269,20 +1100,23 @@ Add a row near execution status/error info:
 </a-descriptions-item>
 ```
 
-Use `green` for sent, `orange` for pending/skipped, `red` for failed, default for none.
+颜色建议：
 
-- [ ] **Step 5: Build frontend**
+- `sent`：green
+- `pending` / `skipped`：orange
+- `failed`：red
+- `none`：default
 
-Run:
+- [ ] **步骤 5：构建前端**
 
 ```bash
 cd chronoFlow-ui
 npm run build
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 6: Commit**
+- [ ] **步骤 6：提交**
 
 ```bash
 git add chronoFlow-ui/src/types/jobLog.ts chronoFlow-ui/src/api/jobLogs.ts chronoFlow-ui/src/stores/jobLogs.ts chronoFlow-ui/src/views/logs/JobLogDetailView.vue
@@ -1291,85 +1125,77 @@ git commit -m "feat: show alert status in logs"
 
 ---
 
-## Task 9: Documentation and manual testing guide
+## 任务 9：文档和测试指南
 
-**Files:**
-- Modify: `README.md`
-- Modify: `README.en.md`
-- Modify: `deploy/README.md`
-- Modify: `docs/TESTING_GUIDE.md`
+**文件：**
 
-- [ ] **Step 1: Update root README files**
+- 修改：`README.md`
+- 修改：`README.en.md`
+- 修改：`deploy/README.md`
+- 修改：`docs/TESTING_GUIDE.md`
 
-In `README.md`, add failure alert to feature table:
+- [ ] **步骤 1：更新根 README**
+
+`README.md` 功能表增加：
 
 ```markdown
 | 飞书失败告警 | 在系统设置中配置飞书 Webhook，任务失败或超时时发送卡片告警。 |
 ```
 
-In `README.en.md`, add:
+`README.en.md` 增加：
 
 ```markdown
 | Feishu failure alerts | Configure a Feishu webhook in System Settings and send card alerts when jobs fail or time out. |
 ```
 
-- [ ] **Step 2: Update deploy README**
+- [ ] **步骤 2：更新部署文档**
 
-In `deploy/README.md`, add section:
+在 `deploy/README.md` 中增加“飞书失败告警”章节，说明：
 
-```markdown
-## 飞书失败告警
-
-1. 在飞书群中进入群设置。
+1. 飞书群进入群设置。
 2. 添加自定义机器人。
 3. 复制机器人 Webhook。
 4. 登录 ChronoFlow，进入“系统设置”。
 5. 粘贴 Webhook 并保存。
 6. 点击“测试发送”确认群里能收到卡片。
 
-V1 不支持飞书签名 Secret。如果启用机器人安全策略，建议使用关键词校验，或先不启用签名校验。
+同时说明：
 
-任务失败判断依赖进程退出码，不解析日志正文。Glue Shell 调用 Python 脚本时推荐：
+- V1 不支持飞书签名 Secret。
+- 如需安全策略，建议使用关键词校验或先不启用签名校验。
+- 任务失败判断依赖进程退出码，不解析日志正文。
+- Glue Shell 调用 Python 时推荐 `set -euo pipefail`。
 
-```bash
-#!/bin/bash
-set -euo pipefail
+- [ ] **步骤 3：更新测试指南**
 
-python3 /scripts/report.py
-```
-```
-
-- [ ] **Step 3: Update testing guide**
-
-Add test cases to `docs/TESTING_GUIDE.md`:
+在 `docs/TESTING_GUIDE.md` 中增加：
 
 ```markdown
 ### TC-ALERT-001 保存飞书 Webhook
-- 进入系统设置。
-- 填写飞书 Webhook 并保存。
-- 预期：页面显示已配置，不回显 Webhook 明文。
+进入系统设置，填写飞书 Webhook 并保存。
+预期：页面显示已配置，不回显 Webhook 明文。
 
 ### TC-ALERT-002 测试发送
-- 点击测试发送。
-- 预期：飞书群收到 ChronoFlow 测试卡片。
+点击测试发送。
+预期：飞书群收到 ChronoFlow 测试卡片。
 
 ### TC-ALERT-003 failed 任务发送告警
-- 创建 Glue Shell：`set -euo pipefail; exit 1`
-- 开启失败告警并运行。
-- 预期：任务日志 failed，飞书群收到失败卡片，日志详情显示告警已发送。
+创建 Glue Shell：`set -euo pipefail; exit 1`
+开启失败告警并运行。
+预期：任务日志 failed，飞书群收到失败卡片，日志详情显示告警已发送。
 
 ### TC-ALERT-004 timeout 任务发送告警
-- 创建超时任务。
-- 开启失败告警并运行。
-- 预期：任务日志 timeout，飞书群收到超时卡片。
+创建超时任务。
+开启失败告警并运行。
+预期：任务日志 timeout，飞书群收到超时卡片。
 
 ### TC-ALERT-005 Webhook 未配置
-- 清空 Webhook。
-- 运行开启失败告警的失败任务。
-- 预期：不发送飞书，日志详情显示未发送：系统未配置飞书 Webhook。
+清空 Webhook。
+运行开启失败告警的失败任务。
+预期：不发送飞书，日志详情显示未发送：系统未配置飞书 Webhook。
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **步骤 4：提交**
 
 ```bash
 git add README.md README.en.md deploy/README.md docs/TESTING_GUIDE.md
@@ -1378,36 +1204,31 @@ git commit -m "docs: document failure alerts"
 
 ---
 
-## Task 10: Full verification and release readiness
+## 任务 10：完整验证和发布前检查
 
-**Files:**
-- No required source edits unless verification finds defects.
+**文件：**
 
-- [ ] **Step 1: Run backend tests**
+- 默认不需要改源文件，除非验证发现问题。
 
-Run:
+- [ ] **步骤 1：运行后端测试**
 
 ```bash
 cd chronoFlow-admin
 go test ./internal/... -count=1
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 2: Run frontend build**
-
-Run:
+- [ ] **步骤 2：运行前端构建**
 
 ```bash
 cd chronoFlow-ui
 npm run build
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 3: Generate API and wire one final time**
-
-Run:
+- [ ] **步骤 3：最终重新生成 API 和 wire**
 
 ```bash
 cd chronoFlow-admin
@@ -1416,47 +1237,45 @@ make wire
 go test ./internal/... -count=1
 ```
 
-Expected: generated files unchanged after final run; tests PASS.
+预期：生成文件没有意外差异，测试通过。
 
-- [ ] **Step 4: Check git diff**
-
-Run:
+- [ ] **步骤 4：检查 Git 状态**
 
 ```bash
 git status --short
 git diff --stat
 ```
 
-Expected: no unexpected untracked files. Any generated changes should already belong to prior commits or be committed here.
+预期：没有意外未跟踪文件。所有应提交的生成文件都已提交。
 
-- [ ] **Step 5: Manual local smoke test**
+- [ ] **步骤 5：本地手动冒烟测试**
 
-Start local stack using the existing deployment docs, then verify:
+按现有部署文档启动本地环境，验证：
 
-1. Login works.
-2. System settings page loads.
-3. Webhook save shows configured.
-4. Test send reaches Feishu.
-5. Failed task sends card.
-6. Log detail shows sent.
-7. Clear webhook.
-8. Failed task does not send card and log detail shows skipped reason.
+1. 登录正常。
+2. 系统设置页面可打开。
+3. 保存 Webhook 后显示已配置。
+4. 测试发送能到飞书。
+5. failed 任务能发送卡片。
+6. 日志详情显示已发送。
+7. 清空 Webhook。
+8. failed 任务不再发送卡片，日志详情显示 skipped 原因。
 
-- [ ] **Step 6: Final commit if verification caused changes**
+- [ ] **步骤 6：如验证产生修复则提交**
 
-If verification required fixes:
+如果验证过程中产生修复：
 
 ```bash
 git add <changed-files>
 git commit -m "fix: stabilize failure alert flow"
 ```
 
-If no changes were required, do not create an empty commit.
+如果没有改动，不创建空提交。
 
 ---
 
-## Self-Review
+## 自检
 
-- Spec coverage: The plan covers global encrypted Feishu Webhook, system settings UI, per-job switch, job list column, log detail alert status, failed/timeout triggers, async sending, retry behavior, pending cleanup, no Secret, no URL link, no log parsing, and documentation.
-- Placeholder scan: This plan contains no unresolved placeholders. Steps include concrete files, code snippets, commands, and expected outcomes.
-- Type consistency: The selected names are consistent across tasks: `failure_alert_enabled`, `FailureAlertEnabled`, `alert_enabled_snapshot`, `alert_status`, `alert_error`, `alert_sent_at`, `SystemSettingUsecase`, `AlertUsecase`, and `FeishuAlertSender`.
+- 需求覆盖：本计划覆盖全局加密飞书 Webhook、系统设置页面、任务告警开关、任务列表展示、日志详情告警状态、failed/timeout 触发、异步发送、重试、pending 清理、不支持 Secret、不包含跳转链接、不解析日志正文、文档更新。
+- 占位检查：本计划不包含未解决占位符。每个任务都包含明确文件、代码片段、命令和预期结果。
+- 命名一致性：计划中统一使用 `failure_alert_enabled`、`FailureAlertEnabled`、`alert_enabled_snapshot`、`alert_status`、`alert_error`、`alert_sent_at`、`SystemSettingUsecase`、`AlertUsecase`、`FeishuAlertSender`。
