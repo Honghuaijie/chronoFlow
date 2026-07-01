@@ -48,6 +48,7 @@ It is designed for teams that currently manage many Shell / Python scripts with 
 | Kill operation | Admin asks Exec to kill the process group, useful when Shell starts Python subprocesses. |
 | File-based logs | MySQL stores metadata only; full log content is stored as files. |
 | Runtime report | View job count, run count, executor count, success rate, and recent 7-day trends. |
+| Feishu failure alerts | Configure a Feishu webhook in System Settings and send card alerts when jobs fail or time out. |
 
 ## Screenshots
 
@@ -165,6 +166,12 @@ echo "done"
 ```
 
 After a manual run, the execution log should be `success` and include the script output.
+
+### 3. Configure failure alerts
+
+Open **System Settings**, paste the Feishu custom bot webhook, and save it. Then enable **Failure Alert** when creating or editing a job. ChronoFlow sends a Feishu card when the final job status is `failed` or `timeout`.
+
+V1 does not support Feishu signature secrets. Failure detection depends on the process exit code, not log text parsing. When Glue Shell calls Python scripts, `set -euo pipefail` is recommended so Python errors produce a non-zero task exit code.
 
 ## Architecture
 
