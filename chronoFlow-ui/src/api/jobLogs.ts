@@ -1,9 +1,10 @@
 import { getData } from './request'
 import type { PageResult } from '@/types/api'
-import type { JobLogDetail, JobLogFilters, JobLogInfo } from '@/types/jobLog'
+import type { AlertStatus, JobLogDetail, JobLogFilters, JobLogInfo } from '@/types/jobLog'
 import { normalizeId, toApiId } from '@/utils/id'
 
-interface JobLogPayload extends Omit<JobLogInfo, 'id' | 'jobId' | 'executorId' | 'durationMs' | 'logSizeBytes'> {
+interface JobLogPayload
+  extends Omit<JobLogInfo, 'id' | 'jobId' | 'executorId' | 'durationMs' | 'logSizeBytes' | 'alertEnabledSnapshot' | 'alertStatus' | 'alertError' | 'alertSentAt'> {
   id: string | number
   jobId?: string | number
   job_id?: string | number
@@ -11,6 +12,14 @@ interface JobLogPayload extends Omit<JobLogInfo, 'id' | 'jobId' | 'executorId' |
   executor_id?: string | number
   durationMs: string | number
   logSizeBytes: string | number
+  alertEnabledSnapshot?: boolean
+  alert_enabled_snapshot?: boolean
+  alertStatus?: string
+  alert_status?: string
+  alertError?: string
+  alert_error?: string
+  alertSentAt?: string
+  alert_sent_at?: string
 }
 
 interface JobLogListData {
@@ -39,7 +48,18 @@ function mapJobLog(payload: JobLogPayload): JobLogInfo {
     executorId: normalizeId(payload.executorId ?? payload.executor_id),
     durationMs: Number(payload.durationMs || 0),
     logSizeBytes: Number(payload.logSizeBytes || 0),
+    alertEnabledSnapshot: Boolean(payload.alertEnabledSnapshot ?? payload.alert_enabled_snapshot),
+    alertStatus: mapAlertStatus(payload.alertStatus ?? payload.alert_status),
+    alertError: payload.alertError ?? payload.alert_error ?? '',
+    alertSentAt: payload.alertSentAt ?? payload.alert_sent_at ?? '',
   }
+}
+
+function mapAlertStatus(status?: string): AlertStatus {
+  if (status === 'pending' || status === 'sent' || status === 'failed' || status === 'skipped' || status === 'none' || status === '') {
+    return status
+  }
+  return 'none'
 }
 
 export async function listJobLogs(params: ListJobLogsParams): Promise<PageResult<JobLogInfo>> {
