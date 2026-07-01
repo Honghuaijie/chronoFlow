@@ -3,10 +3,12 @@ import type { PageResult } from '@/types/api'
 import type { JobForm, JobInfo, RunJobResult } from '@/types/job'
 import { normalizeId, toApiId } from '@/utils/id'
 
-interface JobPayload extends Omit<JobInfo, 'id' | 'executorId'> {
+interface JobPayload extends Omit<JobInfo, 'id' | 'executorId' | 'failureAlertEnabled'> {
   id: string | number
   executorId?: string | number
   executor_id?: string | number
+  failureAlertEnabled?: boolean
+  failure_alert_enabled?: boolean
 }
 
 interface JobData {
@@ -33,6 +35,7 @@ function mapJob(payload: JobPayload): JobInfo {
     ...payload,
     id: normalizeId(payload.id),
     executorId: normalizeId(payload.executorId ?? payload.executor_id),
+    failureAlertEnabled: Boolean(payload.failureAlertEnabled ?? payload.failure_alert_enabled),
   }
 }
 
@@ -44,6 +47,7 @@ function toApiJobForm(form: JobForm): Omit<JobForm, 'id' | 'executorId'> & { id?
     cronExpr: form.cronExpr,
     timeoutSeconds: form.timeoutSeconds,
     description: form.description,
+    failureAlertEnabled: form.failureAlertEnabled,
   }
 }
 

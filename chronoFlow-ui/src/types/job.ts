@@ -10,6 +10,7 @@ export interface JobInfo {
   timeoutSeconds: number
   scheduleStatus: JobScheduleStatus
   description: string
+  failureAlertEnabled: boolean
   createdAt: string
   updatedAt: string
 }
@@ -21,6 +22,7 @@ export interface JobForm {
   cronExpr: string
   timeoutSeconds: number
   description: string
+  failureAlertEnabled: boolean
 }
 
 export interface RunJobResult {

@@ -32,6 +32,7 @@ const form = reactive<JobForm>({
   cronExpr: '0 */5 * * * *',
   timeoutSeconds: 3600,
   description: '',
+  failureAlertEnabled: false,
 })
 
 const executorOptions = computed(() =>
@@ -85,6 +86,7 @@ function resetForm() {
   form.cronExpr = '0 */5 * * * *'
   form.timeoutSeconds = 3600
   form.description = ''
+  form.failureAlertEnabled = false
 }
 
 function openCreate() {
@@ -100,6 +102,7 @@ function openEdit(row: JobInfo) {
   form.cronExpr = row.cronExpr
   form.timeoutSeconds = row.timeoutSeconds
   form.description = row.description
+  form.failureAlertEnabled = row.failureAlertEnabled
   jobModalOpen.value = true
 }
 
@@ -233,6 +236,12 @@ async function runNow(row: JobInfo) {
         <a-table-column title="更新时间" data-index="updatedAt" :width="180">
           <template #default="{ text }">{{ formatDateTime(text) }}</template>
         </a-table-column>
+        <a-table-column title="失败告警" data-index="failureAlertEnabled" :width="110">
+          <template #default="{ record }">
+            <a-tag v-if="(record as JobInfo).failureAlertEnabled" color="blue">开启</a-tag>
+            <a-tag v-else>关闭</a-tag>
+          </template>
+        </a-table-column>
         <a-table-column title="说明" data-index="description" :width="260">
           <template #default="{ text }">
             <a-tooltip v-if="text" :title="text">
@@ -297,6 +306,10 @@ async function runNow(row: JobInfo) {
         <a-form-item label="超时时间（秒）" required>
           <a-input-number v-model:value="form.timeoutSeconds" :min="1" :max="604800" style="width: 100%" />
         </a-form-item>
+        <a-form-item label="失败告警" name="failureAlertEnabled">
+          <a-switch v-model:checked="form.failureAlertEnabled" />
+          <div class="form-help">任务执行失败或超时时发送飞书告警；需先在系统设置中配置飞书 Webhook。</div>
+        </a-form-item>
         <a-form-item label="说明">
           <a-textarea v-model:value="form.description" :rows="3" />
         </a-form-item>
@@ -333,5 +346,12 @@ async function runNow(row: JobInfo) {
   word-break: break-word;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.form-help {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>
