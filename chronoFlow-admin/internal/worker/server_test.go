@@ -56,6 +56,7 @@ func (fakeHealthClient) Health(context.Context, string, string) error {
 
 type fakeMaintenanceRepo struct {
 	failedExecutorID int64
+	failedIDs        []int64
 }
 
 func (r *fakeMaintenanceRepo) MarkActiveLogsFailedByExecutorID(_ context.Context, executorID int64, _ string) error {
@@ -63,12 +64,40 @@ func (r *fakeMaintenanceRepo) MarkActiveLogsFailedByExecutorID(_ context.Context
 	return nil
 }
 
+func (r *fakeMaintenanceRepo) MarkActiveLogsFailedByExecutorIDReturningIDs(_ context.Context, executorID int64, _ string) ([]int64, error) {
+	r.failedExecutorID = executorID
+	r.failedIDs = []int64{101, 102}
+	return r.failedIDs, nil
+}
+
 func (r *fakeMaintenanceRepo) MarkAllActiveLogsFailed(context.Context, string) error { return nil }
+func (r *fakeMaintenanceRepo) MarkAllActiveLogsFailedReturningIDs(context.Context, string) ([]int64, error) {
+	r.failedIDs = []int64{201}
+	return r.failedIDs, nil
+}
 func (r *fakeMaintenanceRepo) MarkKillingTimeoutLogsFailed(context.Context, int32, string) error {
 	return nil
 }
+func (r *fakeMaintenanceRepo) MarkKillingTimeoutLogsFailedReturningIDs(context.Context, int32, string) ([]int64, error) {
+	r.failedIDs = []int64{301}
+	return r.failedIDs, nil
+}
 func (r *fakeMaintenanceRepo) DeleteExpiredLogs(context.Context, int32) ([]string, error) {
 	return nil, nil
+}
+
+type fakeAlertDispatcher struct {
+	dispatched           []int64
+	markedPendingOnStart bool
+}
+
+func (d *fakeAlertDispatcher) DispatchJobLogAlert(_ context.Context, logID int64) {
+	d.dispatched = append(d.dispatched, logID)
+}
+
+func (d *fakeAlertDispatcher) MarkPendingAlertsFailedOnStartup(context.Context) error {
+	d.markedPendingOnStart = true
+	return nil
 }
 
 type fakeJobRepo struct {
@@ -104,6 +133,7 @@ func TestWorkerCheckExecutorsMarksOfflineAfterThreshold(t *testing.T) {
 		nil,
 		executorRepo,
 		maintenanceRepo,
+		nil,
 		fakeTokenCipher{},
 		fakeHealthClient{},
 		nil,
@@ -138,6 +168,7 @@ func TestWorkerRegistersRunningJobsOnStartup(t *testing.T) {
 		fakeJobRunner{},
 		&fakeExecutorRepo{},
 		&fakeMaintenanceRepo{},
+		nil,
 		fakeTokenCipher{},
 		fakeHealthClient{},
 		nil,
@@ -153,5 +184,39 @@ func TestWorkerRegistersRunningJobsOnStartup(t *testing.T) {
 	}
 	if manager.Has(11) {
 		t.Fatalf("expected stopped job 11 to remain unregistered")
+	}
+}
+
+func TestWorkerDispatchesAlertsWhenExecutorOfflineFailsActiveLogs(t *testing.T) {
+	executorRepo := &fakeExecutorRepo{items: []*biz.Executor{{
+		ID:                 7,
+		Address:            "http://exec",
+		TokenCiphertext:    "cipher",
+		Status:             biz.ExecutorStatusOnline,
+		HeartbeatFailCount: 2,
+	}}}
+	maintenanceRepo := &fakeMaintenanceRepo{}
+	alerts := &fakeAlertDispatcher{}
+	server := NewServer(
+		&conf.Executor{HealthCheckFailThreshold: 3},
+		&conf.Recovery{},
+		&conf.Logs{},
+		nil,
+		nil,
+		executorRepo,
+		maintenanceRepo,
+		alerts,
+		fakeTokenCipher{},
+		fakeHealthClient{},
+		nil,
+		nil,
+		log.DefaultLogger,
+	)
+
+	if err := server.checkExecutorsOnce(context.Background()); err != nil {
+		t.Fatalf("checkExecutorsOnce returned error: %v", err)
+	}
+	if len(alerts.dispatched) != 2 || alerts.dispatched[0] != 101 || alerts.dispatched[1] != 102 {
+		t.Fatalf("expected alerts for failed active logs, got %+v", alerts.dispatched)
 	}
 }

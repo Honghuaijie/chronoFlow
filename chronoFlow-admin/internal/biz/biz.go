@@ -19,6 +19,7 @@ var ProviderSet = wire.NewSet(
 	NewAlertUsecase,
 	NewJobRunConfig,
 	NewCallbackConfig,
+	wire.Bind(new(AlertDispatcher), new(*AlertUsecase)),
 )
 
 type Transaction interface {

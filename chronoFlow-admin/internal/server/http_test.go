@@ -165,7 +165,7 @@ func newTestHTTPServer(repo fakeUserRepo) *httptest.Server {
 	glueUC := biz.NewGlueUsecase(fakeGlueRepo{}, logger)
 	jobUC := biz.NewJobUsecase(fakeJobRepo{}, fakeGlueRepo{}, logger)
 	jobLogUC := biz.NewJobLogUsecase(fakeJobLogRepo{}, fakeLogReader{}, logger)
-	callbackUC := biz.NewCallbackUsecase(fakeJobLogRepo{}, fakeLogWriter{}, biz.CallbackConfig{MaxLogBytes: 1024}, logger)
+	callbackUC := biz.NewCallbackUsecase(fakeJobLogRepo{}, fakeLogWriter{}, biz.CallbackConfig{MaxLogBytes: 1024}, nil, logger)
 	systemSettingsUC := biz.NewSystemSettingUsecase(&serverSystemSettingRepo{}, fakeTokenCipher{}, logger)
 	srv := NewHTTPServer(
 		nil,

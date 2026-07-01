@@ -55,6 +55,7 @@ type JobRunUsecase struct {
 	cipher       TokenCipher
 	runner       ExecutorRunner
 	config       JobRunConfig
+	alerts       AlertDispatcher
 	log          *log.Helper
 }
 
@@ -74,6 +75,7 @@ func NewJobRunUsecase(
 	cipher TokenCipher,
 	runner ExecutorRunner,
 	config JobRunConfig,
+	alerts AlertDispatcher,
 	logger log.Logger,
 ) *JobRunUsecase {
 	return &JobRunUsecase{
@@ -84,6 +86,7 @@ func NewJobRunUsecase(
 		cipher:       cipher,
 		runner:       runner,
 		config:       config,
+		alerts:       alerts,
 		log:          log.NewHelper(logger),
 	}
 }
@@ -192,7 +195,10 @@ func (uc *JobRunUsecase) markLogFailed(ctx context.Context, jobLog *JobLog, mess
 	jobLog.Status = JobLogStatusFailed
 	jobLog.EndTime = &now
 	jobLog.ErrorMessage = message
-	_, _ = uc.logRepo.Update(ctx, jobLog)
+	updated, _ := uc.logRepo.Update(ctx, jobLog)
+	if updated != nil && ShouldTriggerFailureAlert(updated.Status) && uc.alerts != nil {
+		uc.alerts.DispatchJobLogAlert(context.Background(), updated.ID)
+	}
 }
 
 func (uc *JobRunUsecase) mustGetRunJob(ctx context.Context, id int64) (*Job, error) {

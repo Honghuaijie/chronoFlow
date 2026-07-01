@@ -33,14 +33,16 @@ type CallbackUsecase struct {
 	logRepo JobRunLogRepo
 	store   LogWriter
 	config  CallbackConfig
+	alerts  AlertDispatcher
 	log     *log.Helper
 }
 
-func NewCallbackUsecase(logRepo JobRunLogRepo, store LogWriter, config CallbackConfig, logger log.Logger) *CallbackUsecase {
+func NewCallbackUsecase(logRepo JobRunLogRepo, store LogWriter, config CallbackConfig, alerts AlertDispatcher, logger log.Logger) *CallbackUsecase {
 	return &CallbackUsecase{
 		logRepo: logRepo,
 		store:   store,
 		config:  config,
+		alerts:  alerts,
 		log:     log.NewHelper(logger),
 	}
 }
@@ -89,6 +91,9 @@ func (uc *CallbackUsecase) ApplyCallback(ctx context.Context, input *CallbackInp
 	updated, err := uc.logRepo.Update(ctx, jobLog)
 	if err != nil {
 		return nil, err
+	}
+	if ShouldTriggerFailureAlert(updated.Status) && uc.alerts != nil {
+		uc.alerts.DispatchJobLogAlert(context.Background(), updated.ID)
 	}
 	return &JobRunResult{LogID: updated.ID, Status: updated.Status}, nil
 }

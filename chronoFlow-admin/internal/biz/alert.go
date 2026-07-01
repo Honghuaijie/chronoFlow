@@ -30,6 +30,11 @@ type AlertCardSender interface {
 	SendCard(context.Context, string, any) error
 }
 
+type AlertDispatcher interface {
+	DispatchJobLogAlert(context.Context, int64)
+	MarkPendingAlertsFailedOnStartup(context.Context) error
+}
+
 type AlertUsecase struct {
 	logRepo     AlertJobLogRepo
 	settings    AlertSettingsProvider

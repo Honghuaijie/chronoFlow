@@ -199,9 +199,19 @@ func (r *JobLogRepo) MarkPendingAlertsFailed(ctx context.Context, message string
 }
 
 func (r *JobLogRepo) MarkActiveLogsFailedByExecutorID(ctx context.Context, executorID int64, message string) error {
+	_, err := r.MarkActiveLogsFailedByExecutorIDReturningIDs(ctx, executorID, message)
+	return err
+}
+
+func (r *JobLogRepo) MarkActiveLogsFailedByExecutorIDReturningIDs(ctx context.Context, executorID int64, message string) ([]int64, error) {
 	now := time.Now()
-	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
-		Where("executor_id = ? AND status IN ?", executorID, []string{biz.JobLogStatusRunning, biz.JobLogStatusKilling}).
+	db := r.data.DB(ctx).WithContext(ctx)
+	ids, err := r.findActiveLogIDs(db, "executor_id = ?", executorID)
+	if err != nil || len(ids) == 0 {
+		return ids, err
+	}
+	return ids, db.Model(&JobLog{}).
+		Where("id IN ?", ids).
 		Updates(map[string]any{
 			"status":        biz.JobLogStatusFailed,
 			"end_time":      now,
@@ -210,9 +220,19 @@ func (r *JobLogRepo) MarkActiveLogsFailedByExecutorID(ctx context.Context, execu
 }
 
 func (r *JobLogRepo) MarkAllActiveLogsFailed(ctx context.Context, message string) error {
+	_, err := r.MarkAllActiveLogsFailedReturningIDs(ctx, message)
+	return err
+}
+
+func (r *JobLogRepo) MarkAllActiveLogsFailedReturningIDs(ctx context.Context, message string) ([]int64, error) {
 	now := time.Now()
-	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
-		Where("status IN ?", []string{biz.JobLogStatusRunning, biz.JobLogStatusKilling}).
+	db := r.data.DB(ctx).WithContext(ctx)
+	ids, err := r.findActiveLogIDs(db, "", nil)
+	if err != nil || len(ids) == 0 {
+		return ids, err
+	}
+	return ids, db.Model(&JobLog{}).
+		Where("id IN ?", ids).
 		Updates(map[string]any{
 			"status":        biz.JobLogStatusFailed,
 			"end_time":      now,
@@ -221,18 +241,45 @@ func (r *JobLogRepo) MarkAllActiveLogsFailed(ctx context.Context, message string
 }
 
 func (r *JobLogRepo) MarkKillingTimeoutLogsFailed(ctx context.Context, timeoutSeconds int32, message string) error {
+	_, err := r.MarkKillingTimeoutLogsFailedReturningIDs(ctx, timeoutSeconds, message)
+	return err
+}
+
+func (r *JobLogRepo) MarkKillingTimeoutLogsFailedReturningIDs(ctx context.Context, timeoutSeconds int32, message string) ([]int64, error) {
 	if timeoutSeconds <= 0 {
-		return nil
+		return nil, nil
 	}
 	now := time.Now()
 	deadline := now.Add(-time.Duration(timeoutSeconds) * time.Second)
-	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+	db := r.data.DB(ctx).WithContext(ctx)
+	var ids []int64
+	if err := db.Model(&JobLog{}).
 		Where("status = ? AND updated_at < ?", biz.JobLogStatusKilling, deadline).
+		Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return ids, nil
+	}
+	return ids, db.Model(&JobLog{}).
+		Where("id IN ?", ids).
 		Updates(map[string]any{
 			"status":        biz.JobLogStatusFailed,
 			"end_time":      now,
 			"error_message": message,
 		}).Error
+}
+
+func (r *JobLogRepo) findActiveLogIDs(db *gorm.DB, extraWhere string, arg any) ([]int64, error) {
+	var ids []int64
+	query := db.Model(&JobLog{}).Where("status IN ?", []string{biz.JobLogStatusRunning, biz.JobLogStatusKilling})
+	if extraWhere != "" {
+		query = query.Where(extraWhere, arg)
+	}
+	if err := query.Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (r *JobLogRepo) DeleteExpiredLogs(ctx context.Context, retentionDays int32) ([]string, error) {
