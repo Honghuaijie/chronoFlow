@@ -15,6 +15,8 @@ var ProviderSet = wire.NewSet(
 	NewJobLogUsecase,
 	NewCallbackUsecase,
 	NewSystemSettingUsecase,
+	NewFeishuAlertSender,
+	NewAlertUsecase,
 	NewJobRunConfig,
 	NewCallbackConfig,
 )

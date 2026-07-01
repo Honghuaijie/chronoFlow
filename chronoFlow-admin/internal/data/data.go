@@ -34,6 +34,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(biz.JobLogRepo), new(*JobLogRepo)),
 	wire.Bind(new(biz.JobRunLogRepo), new(*JobLogRepo)),
 	wire.Bind(new(biz.JobLogMaintenanceRepo), new(*JobLogRepo)),
+	wire.Bind(new(biz.AlertJobLogRepo), new(*JobLogRepo)),
 	wire.Bind(new(biz.SystemSettingRepo), new(*SystemSettingRepo)),
 )
 

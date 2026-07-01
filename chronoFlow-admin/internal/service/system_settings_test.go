@@ -51,7 +51,7 @@ func (fakeSettingCipher) Decrypt(ciphertext string) (string, error) {
 
 func TestSystemSettingsServiceSaveAndClearWebhook(t *testing.T) {
 	uc := biz.NewSystemSettingUsecase(&fakeSystemSettingRepo{}, fakeSettingCipher{}, log.DefaultLogger)
-	svc := NewSystemSettingsService(uc)
+	svc := NewSystemSettingsService(uc, nil)
 
 	saveReply, err := svc.SaveFeishuWebhook(context.Background(), &v1.SaveFeishuWebhookRequest{
 		Webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/abc",

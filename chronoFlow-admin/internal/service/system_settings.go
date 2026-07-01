@@ -12,11 +12,12 @@ import (
 type SystemSettingsService struct {
 	v1.UnimplementedSystemSettingsServer
 
-	uc *biz.SystemSettingUsecase
+	uc      *biz.SystemSettingUsecase
+	alertUC *biz.AlertUsecase
 }
 
-func NewSystemSettingsService(uc *biz.SystemSettingUsecase) *SystemSettingsService {
-	return &SystemSettingsService{uc: uc}
+func NewSystemSettingsService(uc *biz.SystemSettingUsecase, alertUC *biz.AlertUsecase) *SystemSettingsService {
+	return &SystemSettingsService{uc: uc, alertUC: alertUC}
 }
 
 func (s *SystemSettingsService) GetAlertSettings(ctx context.Context, _ *v1.GetAlertSettingsRequest) (*v1.GetAlertSettingsReply, error) {
@@ -46,8 +47,18 @@ func (s *SystemSettingsService) SaveFeishuWebhook(ctx context.Context, req *v1.S
 	}, nil
 }
 
-func (s *SystemSettingsService) TestFeishuWebhook(context.Context, *v1.TestFeishuWebhookRequest) (*v1.TestFeishuWebhookReply, error) {
-	return nil, httpErrors.EWithMessage(httpErrors.ErrConflict, "飞书测试发送器尚未初始化")
+func (s *SystemSettingsService) TestFeishuWebhook(ctx context.Context, _ *v1.TestFeishuWebhookRequest) (*v1.TestFeishuWebhookReply, error) {
+	if s.alertUC == nil {
+		return nil, httpErrors.EWithMessage(httpErrors.ErrConflict, "飞书测试发送器尚未初始化")
+	}
+	if err := s.alertUC.SendTestFeishuAlert(ctx); err != nil {
+		return nil, err
+	}
+	return &v1.TestFeishuWebhookReply{
+		Code:    0,
+		Message: successMessage("TestFeishuWebhook"),
+		Data:    &v1.TestFeishuWebhookReply_Data{Status: "sent"},
+	}, nil
 }
 
 func (s *SystemSettingsService) ClearFeishuWebhook(ctx context.Context, _ *v1.ClearFeishuWebhookRequest) (*v1.ClearFeishuWebhookReply, error) {

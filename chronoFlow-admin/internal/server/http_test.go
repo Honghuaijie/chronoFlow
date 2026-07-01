@@ -177,7 +177,7 @@ func newTestHTTPServer(repo fakeUserRepo) *httptest.Server {
 		service.NewGlueService(glueUC),
 		service.NewJobLogService(jobLogUC),
 		service.NewCallbackService(callbackUC, &conf.Security{CallbackToken: "callback"}),
-		service.NewSystemSettingsService(systemSettingsUC),
+		service.NewSystemSettingsService(systemSettingsUC, nil),
 		logger,
 	)
 	return httptest.NewServer(srv)

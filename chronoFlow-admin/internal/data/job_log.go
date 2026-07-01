@@ -151,6 +151,53 @@ func (r *JobLogRepo) Update(ctx context.Context, jobLog *biz.JobLog) (*biz.JobLo
 	return toBizJobLog(&model), nil
 }
 
+func (r *JobLogRepo) MarkAlertPending(ctx context.Context, id int64) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("id = ? AND alert_status IN ?", id, []string{"", biz.AlertStatusNone}).
+		Updates(map[string]any{
+			"alert_status":  biz.AlertStatusPending,
+			"alert_error":   "",
+			"alert_sent_at": nil,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkAlertSent(ctx context.Context, id int64, sentAt time.Time) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"alert_status":  biz.AlertStatusSent,
+			"alert_error":   "",
+			"alert_sent_at": sentAt,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkAlertFailed(ctx context.Context, id int64, message string) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"alert_status": biz.AlertStatusFailed,
+			"alert_error":  message,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkAlertSkipped(ctx context.Context, id int64, message string) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"alert_status": biz.AlertStatusSkipped,
+			"alert_error":  message,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkPendingAlertsFailed(ctx context.Context, message string) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("alert_status = ?", biz.AlertStatusPending).
+		Updates(map[string]any{
+			"alert_status": biz.AlertStatusFailed,
+			"alert_error":  message,
+		}).Error
+}
+
 func (r *JobLogRepo) MarkActiveLogsFailedByExecutorID(ctx context.Context, executorID int64, message string) error {
 	now := time.Now()
 	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
