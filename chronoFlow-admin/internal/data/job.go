@@ -69,6 +69,7 @@ func (r *JobRepo) Update(ctx context.Context, job *biz.Job) (*biz.Job, error) {
 	model.TimeoutSeconds = job.TimeoutSeconds
 	model.ScheduleStatus = job.ScheduleStatus
 	model.Description = job.Description
+	model.FailureAlertEnabled = job.FailureAlertEnabled
 	if err := db.Save(&model).Error; err != nil {
 		return nil, err
 	}
@@ -84,13 +85,14 @@ func toJobModel(job *biz.Job) *Job {
 		return nil
 	}
 	return &Job{
-		ID:             uint64(job.ID),
-		ExecutorID:     uint64(job.ExecutorID),
-		Name:           job.Name,
-		CronExpr:       job.CronExpr,
-		TimeoutSeconds: job.TimeoutSeconds,
-		ScheduleStatus: job.ScheduleStatus,
-		Description:    job.Description,
+		ID:                  uint64(job.ID),
+		ExecutorID:          uint64(job.ExecutorID),
+		Name:                job.Name,
+		CronExpr:            job.CronExpr,
+		TimeoutSeconds:      job.TimeoutSeconds,
+		ScheduleStatus:      job.ScheduleStatus,
+		Description:         job.Description,
+		FailureAlertEnabled: job.FailureAlertEnabled,
 	}
 }
 
@@ -99,14 +101,15 @@ func toBizJob(model *Job) *biz.Job {
 		return nil
 	}
 	return &biz.Job{
-		ID:             int64(model.ID),
-		ExecutorID:     int64(model.ExecutorID),
-		Name:           model.Name,
-		CronExpr:       model.CronExpr,
-		TimeoutSeconds: model.TimeoutSeconds,
-		ScheduleStatus: model.ScheduleStatus,
-		Description:    model.Description,
-		CreatedAt:      model.CreatedAt,
-		UpdatedAt:      model.UpdatedAt,
+		ID:                  int64(model.ID),
+		ExecutorID:          int64(model.ExecutorID),
+		Name:                model.Name,
+		CronExpr:            model.CronExpr,
+		TimeoutSeconds:      model.TimeoutSeconds,
+		ScheduleStatus:      model.ScheduleStatus,
+		Description:         model.Description,
+		FailureAlertEnabled: model.FailureAlertEnabled,
+		CreatedAt:           model.CreatedAt,
+		UpdatedAt:           model.UpdatedAt,
 	}
 }

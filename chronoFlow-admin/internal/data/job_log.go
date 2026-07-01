@@ -141,6 +141,10 @@ func (r *JobLogRepo) Update(ctx context.Context, jobLog *biz.JobLog) (*biz.JobLo
 	model.LogSizeBytes = jobLog.LogSizeBytes
 	model.LogTruncated = jobLog.LogTruncated
 	model.ErrorMessage = jobLog.ErrorMessage
+	model.AlertEnabledSnapshot = jobLog.AlertEnabledSnapshot
+	model.AlertStatus = normalizedAlertStatus(jobLog.AlertStatus)
+	model.AlertError = jobLog.AlertError
+	model.AlertSentAt = jobLog.AlertSentAt
 	if err := db.Save(&model).Error; err != nil {
 		return nil, err
 	}
@@ -216,25 +220,29 @@ func toJobLogModel(jobLog *biz.JobLog) *JobLog {
 		return nil
 	}
 	return &JobLog{
-		ID:              uint64(jobLog.ID),
-		JobID:           uint64(jobLog.JobID),
-		JobName:         jobLog.JobName,
-		ExecutorID:      uint64(jobLog.ExecutorID),
-		ExecutorName:    jobLog.ExecutorName,
-		ExecutorAddress: jobLog.ExecutorAddress,
-		CronExpr:        jobLog.CronExpr,
-		TimeoutSeconds:  jobLog.TimeoutSeconds,
-		GlueSnapshot:    jobLog.GlueSnapshot,
-		TriggerType:     jobLog.TriggerType,
-		Status:          jobLog.Status,
-		StartTime:       jobLog.StartTime,
-		EndTime:         jobLog.EndTime,
-		DurationMS:      jobLog.DurationMS,
-		ExitCode:        jobLog.ExitCode,
-		LogPath:         jobLog.LogPath,
-		LogSizeBytes:    jobLog.LogSizeBytes,
-		LogTruncated:    jobLog.LogTruncated,
-		ErrorMessage:    jobLog.ErrorMessage,
+		ID:                   uint64(jobLog.ID),
+		JobID:                uint64(jobLog.JobID),
+		JobName:              jobLog.JobName,
+		ExecutorID:           uint64(jobLog.ExecutorID),
+		ExecutorName:         jobLog.ExecutorName,
+		ExecutorAddress:      jobLog.ExecutorAddress,
+		CronExpr:             jobLog.CronExpr,
+		TimeoutSeconds:       jobLog.TimeoutSeconds,
+		GlueSnapshot:         jobLog.GlueSnapshot,
+		TriggerType:          jobLog.TriggerType,
+		Status:               jobLog.Status,
+		StartTime:            jobLog.StartTime,
+		EndTime:              jobLog.EndTime,
+		DurationMS:           jobLog.DurationMS,
+		ExitCode:             jobLog.ExitCode,
+		LogPath:              jobLog.LogPath,
+		LogSizeBytes:         jobLog.LogSizeBytes,
+		LogTruncated:         jobLog.LogTruncated,
+		ErrorMessage:         jobLog.ErrorMessage,
+		AlertEnabledSnapshot: jobLog.AlertEnabledSnapshot,
+		AlertStatus:          normalizedAlertStatus(jobLog.AlertStatus),
+		AlertError:           jobLog.AlertError,
+		AlertSentAt:          jobLog.AlertSentAt,
 	}
 }
 
@@ -243,26 +251,37 @@ func toBizJobLog(model *JobLog) *biz.JobLog {
 		return nil
 	}
 	return &biz.JobLog{
-		ID:              int64(model.ID),
-		JobID:           int64(model.JobID),
-		JobName:         model.JobName,
-		ExecutorID:      int64(model.ExecutorID),
-		ExecutorName:    model.ExecutorName,
-		ExecutorAddress: model.ExecutorAddress,
-		CronExpr:        model.CronExpr,
-		TimeoutSeconds:  model.TimeoutSeconds,
-		GlueSnapshot:    model.GlueSnapshot,
-		TriggerType:     model.TriggerType,
-		Status:          model.Status,
-		StartTime:       model.StartTime,
-		EndTime:         model.EndTime,
-		DurationMS:      model.DurationMS,
-		ExitCode:        model.ExitCode,
-		LogPath:         model.LogPath,
-		LogSizeBytes:    model.LogSizeBytes,
-		LogTruncated:    model.LogTruncated,
-		ErrorMessage:    model.ErrorMessage,
-		CreatedAt:       model.CreatedAt,
-		UpdatedAt:       model.UpdatedAt,
+		ID:                   int64(model.ID),
+		JobID:                int64(model.JobID),
+		JobName:              model.JobName,
+		ExecutorID:           int64(model.ExecutorID),
+		ExecutorName:         model.ExecutorName,
+		ExecutorAddress:      model.ExecutorAddress,
+		CronExpr:             model.CronExpr,
+		TimeoutSeconds:       model.TimeoutSeconds,
+		GlueSnapshot:         model.GlueSnapshot,
+		TriggerType:          model.TriggerType,
+		Status:               model.Status,
+		StartTime:            model.StartTime,
+		EndTime:              model.EndTime,
+		DurationMS:           model.DurationMS,
+		ExitCode:             model.ExitCode,
+		LogPath:              model.LogPath,
+		LogSizeBytes:         model.LogSizeBytes,
+		LogTruncated:         model.LogTruncated,
+		ErrorMessage:         model.ErrorMessage,
+		AlertEnabledSnapshot: model.AlertEnabledSnapshot,
+		AlertStatus:          normalizedAlertStatus(model.AlertStatus),
+		AlertError:           model.AlertError,
+		AlertSentAt:          model.AlertSentAt,
+		CreatedAt:            model.CreatedAt,
+		UpdatedAt:            model.UpdatedAt,
 	}
+}
+
+func normalizedAlertStatus(status string) string {
+	if status == "" {
+		return biz.AlertStatusNone
+	}
+	return status
 }

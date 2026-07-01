@@ -17,6 +17,12 @@ const (
 	JobLogStatusTimeout = "timeout"
 	JobLogStatusSkipped = "skipped"
 	JobLogStatusKilled  = "killed"
+
+	AlertStatusNone    = "none"
+	AlertStatusPending = "pending"
+	AlertStatusSent    = "sent"
+	AlertStatusFailed  = "failed"
+	AlertStatusSkipped = "skipped"
 )
 
 func IsFinalJobLogStatus(status string) bool {

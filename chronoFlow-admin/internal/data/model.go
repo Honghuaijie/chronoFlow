@@ -45,12 +45,13 @@ func (Executor) TableName() string {
 type Job struct {
 	ID uint64 `json:"id" gorm:"primaryKey;autoIncrement"`
 	ModelOpt
-	ExecutorID     uint64 `json:"executorId" gorm:"column:executor_id;not null;index"`
-	Name           string `json:"name" gorm:"size:100;not null"`
-	CronExpr       string `json:"cronExpr" gorm:"column:cron_expr;size:100;not null"`
-	TimeoutSeconds int32  `json:"timeoutSeconds" gorm:"column:timeout_seconds;not null;default:600"`
-	ScheduleStatus string `json:"scheduleStatus" gorm:"column:schedule_status;size:32;not null;index"`
-	Description    string `json:"description" gorm:"size:500;default:''"`
+	ExecutorID          uint64 `json:"executorId" gorm:"column:executor_id;not null;index"`
+	Name                string `json:"name" gorm:"size:100;not null"`
+	CronExpr            string `json:"cronExpr" gorm:"column:cron_expr;size:100;not null"`
+	TimeoutSeconds      int32  `json:"timeoutSeconds" gorm:"column:timeout_seconds;not null;default:600"`
+	ScheduleStatus      string `json:"scheduleStatus" gorm:"column:schedule_status;size:32;not null;index"`
+	Description         string `json:"description" gorm:"size:500;default:''"`
+	FailureAlertEnabled bool   `json:"failureAlertEnabled" gorm:"column:failure_alert_enabled;not null;default:false"`
 }
 
 func (Job) TableName() string {
@@ -71,24 +72,28 @@ func (JobGlue) TableName() string {
 type JobLog struct {
 	ID uint64 `json:"id" gorm:"primaryKey;autoIncrement"`
 	ModelOpt
-	JobID           uint64     `json:"jobId" gorm:"column:job_id;not null;index"`
-	JobName         string     `json:"jobName" gorm:"column:job_name;size:100;not null"`
-	ExecutorID      uint64     `json:"executorId" gorm:"column:executor_id;not null;index"`
-	ExecutorName    string     `json:"executorName" gorm:"column:executor_name;size:100;not null"`
-	ExecutorAddress string     `json:"executorAddress" gorm:"column:executor_address;size:255;not null"`
-	CronExpr        string     `json:"cronExpr" gorm:"column:cron_expr;size:100;not null"`
-	TimeoutSeconds  int32      `json:"timeoutSeconds" gorm:"column:timeout_seconds;not null"`
-	GlueSnapshot    string     `json:"glueSnapshot" gorm:"column:glue_snapshot;type:mediumtext;not null"`
-	TriggerType     string     `json:"triggerType" gorm:"column:trigger_type;size:32;not null;index"`
-	Status          string     `json:"status" gorm:"size:32;not null;index"`
-	StartTime       time.Time  `json:"startTime" gorm:"column:start_time;not null"`
-	EndTime         *time.Time `json:"endTime" gorm:"column:end_time"`
-	DurationMS      int64      `json:"durationMs" gorm:"column:duration_ms;not null;default:0"`
-	ExitCode        *int32     `json:"exitCode" gorm:"column:exit_code"`
-	LogPath         string     `json:"logPath" gorm:"column:log_path;size:500;default:''"`
-	LogSizeBytes    int64      `json:"logSizeBytes" gorm:"column:log_size_bytes;not null;default:0"`
-	LogTruncated    bool       `json:"logTruncated" gorm:"column:log_truncated;not null;default:false"`
-	ErrorMessage    string     `json:"errorMessage" gorm:"column:error_message;type:text"`
+	JobID                uint64     `json:"jobId" gorm:"column:job_id;not null;index"`
+	JobName              string     `json:"jobName" gorm:"column:job_name;size:100;not null"`
+	ExecutorID           uint64     `json:"executorId" gorm:"column:executor_id;not null;index"`
+	ExecutorName         string     `json:"executorName" gorm:"column:executor_name;size:100;not null"`
+	ExecutorAddress      string     `json:"executorAddress" gorm:"column:executor_address;size:255;not null"`
+	CronExpr             string     `json:"cronExpr" gorm:"column:cron_expr;size:100;not null"`
+	TimeoutSeconds       int32      `json:"timeoutSeconds" gorm:"column:timeout_seconds;not null"`
+	GlueSnapshot         string     `json:"glueSnapshot" gorm:"column:glue_snapshot;type:mediumtext;not null"`
+	TriggerType          string     `json:"triggerType" gorm:"column:trigger_type;size:32;not null;index"`
+	Status               string     `json:"status" gorm:"size:32;not null;index"`
+	StartTime            time.Time  `json:"startTime" gorm:"column:start_time;not null"`
+	EndTime              *time.Time `json:"endTime" gorm:"column:end_time"`
+	DurationMS           int64      `json:"durationMs" gorm:"column:duration_ms;not null;default:0"`
+	ExitCode             *int32     `json:"exitCode" gorm:"column:exit_code"`
+	LogPath              string     `json:"logPath" gorm:"column:log_path;size:500;default:''"`
+	LogSizeBytes         int64      `json:"logSizeBytes" gorm:"column:log_size_bytes;not null;default:0"`
+	LogTruncated         bool       `json:"logTruncated" gorm:"column:log_truncated;not null;default:false"`
+	ErrorMessage         string     `json:"errorMessage" gorm:"column:error_message;type:text"`
+	AlertEnabledSnapshot bool       `json:"alertEnabledSnapshot" gorm:"column:alert_enabled_snapshot;not null;default:false"`
+	AlertStatus          string     `json:"alertStatus" gorm:"column:alert_status;size:32;not null;default:'none';index"`
+	AlertError           string     `json:"alertError" gorm:"column:alert_error;type:text"`
+	AlertSentAt          *time.Time `json:"alertSentAt" gorm:"column:alert_sent_at"`
 }
 
 func (JobLog) TableName() string {

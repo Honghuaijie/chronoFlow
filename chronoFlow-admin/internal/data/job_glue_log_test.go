@@ -30,11 +30,12 @@ func TestJobRepoCreateListUpdateDelete(t *testing.T) {
 	ctx := context.Background()
 
 	created, err := jobRepo.Create(ctx, &biz.Job{
-		ExecutorID:     10,
-		Name:           "daily",
-		CronExpr:       "0 0 1 * * *",
-		TimeoutSeconds: 30,
-		ScheduleStatus: biz.ScheduleStatusStopped,
+		ExecutorID:          10,
+		Name:                "daily",
+		CronExpr:            "0 0 1 * * *",
+		TimeoutSeconds:      30,
+		ScheduleStatus:      biz.ScheduleStatusStopped,
+		FailureAlertEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
@@ -47,14 +48,21 @@ func TestJobRepoCreateListUpdateDelete(t *testing.T) {
 	if len(items) != 1 || items[0].ID != created.ID {
 		t.Fatalf("unexpected list items: %+v", items)
 	}
+	if !items[0].FailureAlertEnabled {
+		t.Fatal("expected failure alert enabled in list item")
+	}
 
 	created.ScheduleStatus = biz.ScheduleStatusRunning
+	created.FailureAlertEnabled = false
 	updated, err := jobRepo.Update(ctx, created)
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}
 	if updated.ScheduleStatus != biz.ScheduleStatusRunning {
 		t.Fatalf("expected running, got %q", updated.ScheduleStatus)
+	}
+	if updated.FailureAlertEnabled {
+		t.Fatal("expected failure alert disabled after update")
 	}
 
 	if err := jobRepo.Delete(ctx, created.ID); err != nil {
@@ -98,18 +106,20 @@ func TestJobLogRepoListAndGet(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	model := &JobLog{
-		JobID:           1,
-		JobName:         "daily",
-		ExecutorID:      2,
-		ExecutorName:    "exec",
-		ExecutorAddress: "http://exec",
-		CronExpr:        "0 0 1 * * *",
-		TimeoutSeconds:  30,
-		GlueSnapshot:    "echo hello",
-		TriggerType:     biz.TriggerTypeManual,
-		Status:          biz.JobLogStatusSuccess,
-		StartTime:       now,
-		LogPath:         "logs/1.log",
+		JobID:                1,
+		JobName:              "daily",
+		ExecutorID:           2,
+		ExecutorName:         "exec",
+		ExecutorAddress:      "http://exec",
+		CronExpr:             "0 0 1 * * *",
+		TimeoutSeconds:       30,
+		GlueSnapshot:         "echo hello",
+		TriggerType:          biz.TriggerTypeManual,
+		Status:               biz.JobLogStatusSuccess,
+		StartTime:            now,
+		LogPath:              "logs/1.log",
+		AlertEnabledSnapshot: true,
+		AlertStatus:          biz.AlertStatusSent,
 	}
 	if err := data.DB(ctx).Create(model).Error; err != nil {
 		t.Fatalf("create job log: %v", err)
@@ -129,6 +139,9 @@ func TestJobLogRepoListAndGet(t *testing.T) {
 	if got.GlueSnapshot != "echo hello" || got.LogPath != "logs/1.log" {
 		t.Fatalf("unexpected job log: %+v", got)
 	}
+	if !got.AlertEnabledSnapshot || got.AlertStatus != biz.AlertStatusSent {
+		t.Fatalf("unexpected alert fields: %+v", got)
+	}
 }
 
 func TestJobLogRepoCreateGetRunningAndUpdate(t *testing.T) {
@@ -139,17 +152,19 @@ func TestJobLogRepoCreateGetRunningAndUpdate(t *testing.T) {
 	created, err := jobLogRepo.(interface {
 		Create(context.Context, *biz.JobLog) (*biz.JobLog, error)
 	}).Create(ctx, &biz.JobLog{
-		JobID:           1,
-		JobName:         "daily",
-		ExecutorID:      2,
-		ExecutorName:    "exec",
-		ExecutorAddress: "http://exec",
-		CronExpr:        "0 0 1 * * *",
-		TimeoutSeconds:  30,
-		GlueSnapshot:    "echo hello",
-		TriggerType:     biz.TriggerTypeManual,
-		Status:          biz.JobLogStatusRunning,
-		StartTime:       now,
+		JobID:                1,
+		JobName:              "daily",
+		ExecutorID:           2,
+		ExecutorName:         "exec",
+		ExecutorAddress:      "http://exec",
+		CronExpr:             "0 0 1 * * *",
+		TimeoutSeconds:       30,
+		GlueSnapshot:         "echo hello",
+		TriggerType:          biz.TriggerTypeManual,
+		Status:               biz.JobLogStatusRunning,
+		StartTime:            now,
+		AlertEnabledSnapshot: true,
+		AlertStatus:          biz.AlertStatusNone,
 	})
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
@@ -164,11 +179,15 @@ func TestJobLogRepoCreateGetRunningAndUpdate(t *testing.T) {
 	if running == nil || running.ID != created.ID {
 		t.Fatalf("expected running log %d, got %+v", created.ID, running)
 	}
+	if !running.AlertEnabledSnapshot || running.AlertStatus != biz.AlertStatusNone {
+		t.Fatalf("unexpected running alert fields: %+v", running)
+	}
 
 	endTime := now.Add(time.Second)
 	created.Status = biz.JobLogStatusSuccess
 	created.EndTime = &endTime
 	created.LogPath = "logs/1.log"
+	created.AlertStatus = biz.AlertStatusSent
 	updated, err := jobLogRepo.(interface {
 		Update(context.Context, *biz.JobLog) (*biz.JobLog, error)
 	}).Update(ctx, created)
@@ -177,6 +196,9 @@ func TestJobLogRepoCreateGetRunningAndUpdate(t *testing.T) {
 	}
 	if updated.Status != biz.JobLogStatusSuccess || updated.LogPath != "logs/1.log" {
 		t.Fatalf("unexpected updated log: %+v", updated)
+	}
+	if updated.AlertStatus != biz.AlertStatusSent {
+		t.Fatalf("expected sent alert status, got %+v", updated)
 	}
 }
 

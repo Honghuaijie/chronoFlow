@@ -118,17 +118,19 @@ func (uc *JobRunUsecase) RunJob(ctx context.Context, jobID int64, triggerType st
 		return nil, err
 	}
 	created, err := uc.logRepo.CreateRunningIfNoActive(ctx, &JobLog{
-		JobID:           job.ID,
-		JobName:         job.Name,
-		ExecutorID:      executor.ID,
-		ExecutorName:    executor.Name,
-		ExecutorAddress: executor.Address,
-		CronExpr:        job.CronExpr,
-		TimeoutSeconds:  job.TimeoutSeconds,
-		GlueSnapshot:    glue.Content,
-		TriggerType:     triggerType,
-		Status:          JobLogStatusRunning,
-		StartTime:       time.Now(),
+		JobID:                job.ID,
+		JobName:              job.Name,
+		ExecutorID:           executor.ID,
+		ExecutorName:         executor.Name,
+		ExecutorAddress:      executor.Address,
+		CronExpr:             job.CronExpr,
+		TimeoutSeconds:       job.TimeoutSeconds,
+		GlueSnapshot:         glue.Content,
+		TriggerType:          triggerType,
+		Status:               JobLogStatusRunning,
+		StartTime:            time.Now(),
+		AlertEnabledSnapshot: job.FailureAlertEnabled,
+		AlertStatus:          AlertStatusNone,
 	})
 	if err != nil {
 		return nil, err
