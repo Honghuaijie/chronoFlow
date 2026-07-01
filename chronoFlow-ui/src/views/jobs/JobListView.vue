@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Modal } from 'ant-design-vue'
+import { getAlertSettings } from '@/api/systemSettings'
 import CronExpressionPicker from '@/components/CronExpressionPicker.vue'
 import PageHeaderBar from '@/components/PageHeaderBar.vue'
 import PollingIndicator from '@/components/PollingIndicator.vue'
@@ -11,6 +12,7 @@ import { useJobLogsStore } from '@/stores/jobLogs'
 import { useJobsStore } from '@/stores/jobs'
 import type { ExecutorInfo } from '@/types/executor'
 import type { JobForm, JobInfo } from '@/types/job'
+import type { AlertSettings } from '@/types/systemSettings'
 import { formatNextRunTime } from '@/utils/cron'
 import { formatDateTime } from '@/utils/datetime'
 import { isActiveLogStatus } from '@/utils/status'
@@ -25,6 +27,10 @@ const glueDrawerOpen = ref(false)
 const editingId = ref('')
 const glueJob = ref<JobInfo | null>(null)
 const pollingTimer = ref<number | null>(null)
+const alertSettings = ref<AlertSettings>({
+  feishuWebhookConfigured: false,
+  feishuWebhookUpdatedAt: '',
+})
 
 const form = reactive<JobForm>({
   executorId: '',
@@ -53,7 +59,7 @@ const selectedExecutorId = computed({
 })
 
 onMounted(async () => {
-  await Promise.all([executorsStore.fetchList(), jobsStore.fetchList(), refreshActiveLogs()])
+  await Promise.all([executorsStore.fetchList(), jobsStore.fetchList(), refreshActiveLogs(), refreshAlertSettings()])
   pollingTimer.value = window.setInterval(() => {
     void refreshActiveLogs()
   }, 5000)
@@ -67,6 +73,27 @@ onBeforeUnmount(() => {
 
 async function refreshActiveLogs() {
   await logsStore.fetchActiveList()
+}
+
+async function refreshAlertSettings() {
+  try {
+    alertSettings.value = await getAlertSettings()
+  } catch {
+    alertSettings.value = {
+      feishuWebhookConfigured: false,
+      feishuWebhookUpdatedAt: '',
+    }
+  }
+}
+
+function alertTooltip(row: JobInfo) {
+  if (!row.failureAlertEnabled) {
+    return '任务失败或超时时不会发送告警'
+  }
+  if (!alertSettings.value.feishuWebhookConfigured) {
+    return '系统设置未配置飞书 Webhook，失败时不会发送'
+  }
+  return '任务失败或超时时发送飞书告警'
 }
 
 async function applyFilters() {
@@ -238,8 +265,15 @@ async function runNow(row: JobInfo) {
         </a-table-column>
         <a-table-column title="失败告警" data-index="failureAlertEnabled" :width="110">
           <template #default="{ record }">
-            <a-tag v-if="(record as JobInfo).failureAlertEnabled" color="blue">开启</a-tag>
-            <a-tag v-else>关闭</a-tag>
+            <a-tooltip :title="alertTooltip(record as JobInfo)">
+              <a-tag
+                v-if="(record as JobInfo).failureAlertEnabled"
+                :color="alertSettings.feishuWebhookConfigured ? 'blue' : 'orange'"
+              >
+                开启
+              </a-tag>
+              <a-tag v-else>关闭</a-tag>
+            </a-tooltip>
           </template>
         </a-table-column>
         <a-table-column title="说明" data-index="description" :width="260">

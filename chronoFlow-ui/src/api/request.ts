@@ -68,3 +68,13 @@ export async function postData<T, P extends object>(url: string, payload: P): Pr
   const response = await request.post<ApiEnvelope<T>>(url, payload)
   return response.data.data
 }
+
+export async function putData<T, P extends object>(url: string, payload: P): Promise<T> {
+  const response = await request.put<ApiEnvelope<T>>(url, payload)
+  return response.data.data
+}
+
+export async function deleteData<T>(url: string): Promise<T> {
+  const response = await request.delete<ApiEnvelope<T>>(url)
+  return response.data.data
+}
