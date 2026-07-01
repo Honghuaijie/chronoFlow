@@ -84,12 +84,12 @@ cp .env.example .env
 
 已发布镜像可以在 [GitHub Packages](https://github.com/Honghuaijie?tab=packages) 查看。
 
-推荐 Admin / Exec 使用固定版本镜像；UI 当前示例使用 `latest`，如果你也发布了 UI 版本标签，可以改成对应版本：
+推荐使用固定版本镜像，便于回滚和排查问题：
 
 ```env
-CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.2
-CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.2
-CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:latest
+CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.3
+CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.3
+CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:v0.1.3
 ```
 
 如果需要使用项目内置 MySQL：
@@ -175,7 +175,7 @@ echo "done"
 
 进入“系统设置”，粘贴飞书自定义机器人的 Webhook 并保存。创建或编辑任务时开启“失败告警”，当任务最终状态为 `failed` 或 `timeout` 时，ChronoFlow 会发送飞书卡片。
 
-V1 不支持飞书签名 Secret；失败判断依赖进程退出码，不解析日志正文。Glue Shell 调用 Python 时建议使用 `set -euo pipefail`，确保 Python 报错会让任务返回非 0 退出码。
+如果飞书机器人开启了关键词校验，请在飞书机器人安全设置中把关键词配置为 `ChronoFlow`。V1 不支持飞书签名 Secret；失败判断依赖进程退出码，不解析日志正文。Glue Shell 调用 Python 时建议使用 `set -euo pipefail`，确保 Python 报错会让任务返回非 0 退出码。
 
 ## 架构
 

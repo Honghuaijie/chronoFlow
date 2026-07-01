@@ -82,12 +82,12 @@ cp .env.example .env
 
 Published images are available on [GitHub Packages](https://github.com/Honghuaijie?tab=packages).
 
-Admin / Exec fixed image versions are recommended. The UI example currently uses `latest`; if you also publish a UI version tag, replace it with that version:
+Fixed image versions are recommended because they are easier to roll back and troubleshoot:
 
 ```env
-CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.2
-CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.2
-CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:latest
+CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.3
+CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.3
+CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:v0.1.3
 ```
 
 If you want to use the bundled MySQL service:
@@ -173,7 +173,7 @@ After a manual run, the execution log should be `success` and include the script
 
 Open **System Settings**, paste the Feishu custom bot webhook, and save it. Then enable **Failure Alert** when creating or editing a job. ChronoFlow sends a Feishu card when the final job status is `failed` or `timeout`.
 
-V1 does not support Feishu signature secrets. Failure detection depends on the process exit code, not log text parsing. When Glue Shell calls Python scripts, `set -euo pipefail` is recommended so Python errors produce a non-zero task exit code.
+If Feishu keyword verification is enabled, configure the bot keyword as `ChronoFlow`. V1 does not support Feishu signature secrets. Failure detection depends on the process exit code, not log text parsing. When Glue Shell calls Python scripts, `set -euo pipefail` is recommended so Python errors produce a non-zero task exit code.
 
 ## Architecture
 
