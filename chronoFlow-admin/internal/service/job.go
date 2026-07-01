@@ -161,11 +161,12 @@ func validateCreateJobRequest(req *v1.CreateJobRequest) (*biz.CreateJobInput, er
 		return nil, httpErrors.E(httpErrors.ErrInvalidRequestBody)
 	}
 	return &biz.CreateJobInput{
-		ExecutorID:     req.GetExecutorId(),
-		Name:           strings.TrimSpace(req.GetName()),
-		CronExpr:       strings.TrimSpace(req.GetCronExpr()),
-		TimeoutSeconds: req.GetTimeoutSeconds(),
-		Description:    strings.TrimSpace(req.GetDescription()),
+		ExecutorID:          req.GetExecutorId(),
+		Name:                strings.TrimSpace(req.GetName()),
+		CronExpr:            strings.TrimSpace(req.GetCronExpr()),
+		TimeoutSeconds:      req.GetTimeoutSeconds(),
+		Description:         strings.TrimSpace(req.GetDescription()),
+		FailureAlertEnabled: req.GetFailureAlertEnabled(),
 	}, nil
 }
 
@@ -174,12 +175,13 @@ func validateUpdateJobRequest(req *v1.UpdateJobRequest) (*biz.UpdateJobInput, er
 		return nil, httpErrors.E(httpErrors.ErrInvalidRequestBody)
 	}
 	return &biz.UpdateJobInput{
-		ID:             req.GetId(),
-		ExecutorID:     req.GetExecutorId(),
-		Name:           strings.TrimSpace(req.GetName()),
-		CronExpr:       strings.TrimSpace(req.GetCronExpr()),
-		TimeoutSeconds: req.GetTimeoutSeconds(),
-		Description:    strings.TrimSpace(req.GetDescription()),
+		ID:                  req.GetId(),
+		ExecutorID:          req.GetExecutorId(),
+		Name:                strings.TrimSpace(req.GetName()),
+		CronExpr:            strings.TrimSpace(req.GetCronExpr()),
+		TimeoutSeconds:      req.GetTimeoutSeconds(),
+		Description:         strings.TrimSpace(req.GetDescription()),
+		FailureAlertEnabled: req.GetFailureAlertEnabled(),
 	}, nil
 }
 
@@ -188,14 +190,15 @@ func toJobInfo(job *biz.Job) *v1.JobInfo {
 		return nil
 	}
 	return &v1.JobInfo{
-		Id:             job.ID,
-		ExecutorId:     job.ExecutorID,
-		Name:           job.Name,
-		CronExpr:       job.CronExpr,
-		TimeoutSeconds: job.TimeoutSeconds,
-		ScheduleStatus: job.ScheduleStatus,
-		Description:    job.Description,
-		CreatedAt:      formatServiceTime(job.CreatedAt),
-		UpdatedAt:      formatServiceTime(job.UpdatedAt),
+		Id:                  job.ID,
+		ExecutorId:          job.ExecutorID,
+		Name:                job.Name,
+		CronExpr:            job.CronExpr,
+		TimeoutSeconds:      job.TimeoutSeconds,
+		ScheduleStatus:      job.ScheduleStatus,
+		Description:         job.Description,
+		CreatedAt:           formatServiceTime(job.CreatedAt),
+		UpdatedAt:           formatServiceTime(job.UpdatedAt),
+		FailureAlertEnabled: job.FailureAlertEnabled,
 	}
 }

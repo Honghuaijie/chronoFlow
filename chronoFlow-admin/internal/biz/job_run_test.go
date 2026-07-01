@@ -117,13 +117,14 @@ func TestJobRunUsecaseRunCreatesLogAndCallsExecutor(t *testing.T) {
 	jobLogRepo := &fakeRunJobLogRepo{}
 	runner := &fakeExecutorRunner{}
 	uc := NewJobRunUsecase(
-		fakeRunJobRepo{job: &Job{ID: 1, ExecutorID: 2, Name: "daily", CronExpr: "0 0 1 * * *", TimeoutSeconds: 30}},
+		fakeRunJobRepo{job: &Job{ID: 1, ExecutorID: 2, Name: "daily", CronExpr: "0 0 1 * * *", TimeoutSeconds: 30, FailureAlertEnabled: true}},
 		fakeRunGlueRepo{glue: &Glue{JobID: 1, Content: "echo hello"}},
 		fakeRunExecutorRepo{executor: &Executor{ID: 2, Name: "exec", Address: "http://exec", TokenCiphertext: "cipher"}},
 		jobLogRepo,
 		fakeTokenCipher{},
 		runner,
 		JobRunConfig{PublicBaseURL: "http://admin", CallbackToken: "callback"},
+		nil,
 		log.DefaultLogger,
 	)
 
@@ -136,6 +137,9 @@ func TestJobRunUsecaseRunCreatesLogAndCallsExecutor(t *testing.T) {
 	}
 	if jobLogRepo.created.Status != JobLogStatusRunning || jobLogRepo.created.GlueSnapshot != "echo hello" {
 		t.Fatalf("unexpected created log: %+v", jobLogRepo.created)
+	}
+	if !jobLogRepo.created.AlertEnabledSnapshot || jobLogRepo.created.AlertStatus != AlertStatusNone {
+		t.Fatalf("unexpected alert snapshot: %+v", jobLogRepo.created)
 	}
 	if runner.runReq == nil || runner.runReq.CallbackURL != "http://admin/internal/job-runs/callback" {
 		t.Fatalf("executor was not called with callback url: %+v", runner.runReq)
@@ -151,6 +155,7 @@ func TestJobRunUsecaseRunRejectsWhenSameJobRunning(t *testing.T) {
 		fakeTokenCipher{},
 		&fakeExecutorRunner{},
 		JobRunConfig{PublicBaseURL: "http://admin", CallbackToken: "callback"},
+		nil,
 		log.DefaultLogger,
 	)
 
@@ -163,6 +168,7 @@ func TestJobRunUsecaseRunRejectsWhenSameJobRunning(t *testing.T) {
 func TestJobRunUsecaseRunMarksLogFailedWhenDispatchFails(t *testing.T) {
 	jobLogRepo := &fakeRunJobLogRepo{}
 	runner := &fakeExecutorRunner{runErr: errors.New("executor unavailable")}
+	alerts := &fakeAlertDispatcher{}
 	uc := NewJobRunUsecase(
 		fakeRunJobRepo{job: &Job{ID: 1, ExecutorID: 2, Name: "daily", CronExpr: "0 0 1 * * *", TimeoutSeconds: 30}},
 		fakeRunGlueRepo{glue: &Glue{JobID: 1, Content: "echo hello"}},
@@ -171,6 +177,7 @@ func TestJobRunUsecaseRunMarksLogFailedWhenDispatchFails(t *testing.T) {
 		fakeTokenCipher{},
 		runner,
 		JobRunConfig{PublicBaseURL: "http://admin", CallbackToken: "callback"},
+		alerts,
 		log.DefaultLogger,
 	)
 
@@ -183,6 +190,9 @@ func TestJobRunUsecaseRunMarksLogFailedWhenDispatchFails(t *testing.T) {
 	}
 	if jobLogRepo.updated.EndTime == nil || jobLogRepo.updated.ErrorMessage == "" {
 		t.Fatalf("expected failed log end time and error message, got %+v", jobLogRepo.updated)
+	}
+	if len(alerts.dispatched) != 1 || alerts.dispatched[0] != 1 {
+		t.Fatalf("expected alert dispatched for log 1, got %+v", alerts.dispatched)
 	}
 }
 
@@ -198,6 +208,7 @@ func TestJobRunUsecaseKillMarksKillingAndCallsExecutor(t *testing.T) {
 		fakeTokenCipher{},
 		runner,
 		JobRunConfig{PublicBaseURL: "http://admin", CallbackToken: "callback"},
+		nil,
 		log.DefaultLogger,
 	)
 
@@ -222,6 +233,7 @@ func TestJobRunUsecaseKillMarksFailedWhenExecutorKillFails(t *testing.T) {
 		fakeTokenCipher{},
 		runner,
 		JobRunConfig{PublicBaseURL: "http://admin", CallbackToken: "callback"},
+		nil,
 		log.DefaultLogger,
 	)
 

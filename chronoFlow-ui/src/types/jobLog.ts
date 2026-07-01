@@ -1,7 +1,8 @@
 import type { Id } from './api'
 
-export type JobLogStatus = 'running' | 'killing' | 'success' | 'failed' | 'killed' | 'skipped' | string
+export type JobLogStatus = 'running' | 'killing' | 'success' | 'failed' | 'timeout' | 'killed' | 'skipped' | string
 export type TriggerType = 'manual' | 'cron' | string
+export type AlertStatus = 'none' | 'pending' | 'sent' | 'failed' | 'skipped' | ''
 
 export interface JobLogInfo {
   id: Id
@@ -22,6 +23,10 @@ export interface JobLogInfo {
   logSizeBytes: number
   logTruncated: boolean
   errorMessage: string
+  alertEnabledSnapshot: boolean
+  alertStatus: AlertStatus
+  alertError: string
+  alertSentAt: string
   createdAt: string
   updatedAt: string
 }

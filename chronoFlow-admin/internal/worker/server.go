@@ -16,6 +16,7 @@ import (
 const unknownResultMessage = "执行器重启或失联，执行结果未知"
 
 var ProviderSet = wire.NewSet(
+	biz.NewJobRunUsecase,
 	NewServer,
 	wire.Bind(new(JobRunner), new(*biz.JobRunUsecase)),
 )
@@ -32,6 +33,7 @@ type Server struct {
 	jobRunner    JobRunner
 	executorRepo biz.ExecutorRepo
 	logRepo      biz.JobLogMaintenanceRepo
+	alerts       biz.AlertDispatcher
 	cipher       biz.TokenCipher
 	healthClient biz.ExecutorHealthClient
 	fileStore    *logstore.FileStore
@@ -48,6 +50,7 @@ func NewServer(
 	jobRunner JobRunner,
 	executorRepo biz.ExecutorRepo,
 	logRepo biz.JobLogMaintenanceRepo,
+	alerts biz.AlertDispatcher,
 	cipher biz.TokenCipher,
 	healthClient biz.ExecutorHealthClient,
 	fileStore *logstore.FileStore,
@@ -62,6 +65,7 @@ func NewServer(
 		jobRunner:    jobRunner,
 		executorRepo: executorRepo,
 		logRepo:      logRepo,
+		alerts:       alerts,
 		cipher:       cipher,
 		healthClient: healthClient,
 		fileStore:    fileStore,
@@ -77,6 +81,9 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	if err := s.registerRunningJobs(ctx); err != nil {
 		return err
+	}
+	if s.alerts != nil {
+		_ = s.alerts.MarkPendingAlertsFailedOnStartup(ctx)
 	}
 	go s.runStartupRecovery()
 	go s.runHealthLoop()
@@ -127,7 +134,10 @@ func (s *Server) runStartupRecovery() {
 	delay := time.Duration(s.recoverySeconds()) * time.Second
 	select {
 	case <-time.After(delay):
-		_ = s.logRepo.MarkAllActiveLogsFailed(context.Background(), unknownResultMessage)
+		ids, err := s.logRepo.MarkAllActiveLogsFailedReturningIDs(context.Background(), unknownResultMessage)
+		if err == nil {
+			s.dispatchAlerts(ids)
+		}
 	case <-s.stop:
 	}
 }
@@ -152,7 +162,10 @@ func (s *Server) runKillingTimeoutLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			_ = s.logRepo.MarkKillingTimeoutLogsFailed(context.Background(), s.killingTimeoutSeconds(), "终止超时")
+			ids, err := s.logRepo.MarkKillingTimeoutLogsFailedReturningIDs(context.Background(), s.killingTimeoutSeconds(), "终止超时")
+			if err == nil {
+				s.dispatchAlerts(ids)
+			}
 		case <-s.stop:
 			return
 		}
@@ -186,7 +199,10 @@ func (s *Server) checkExecutorsOnce(ctx context.Context) error {
 			executor.HeartbeatFailCount++
 			if executor.HeartbeatFailCount >= s.failThreshold() {
 				executor.Status = biz.ExecutorStatusOffline
-				_ = s.logRepo.MarkActiveLogsFailedByExecutorID(ctx, executor.ID, unknownResultMessage)
+				ids, err := s.logRepo.MarkActiveLogsFailedByExecutorIDReturningIDs(ctx, executor.ID, unknownResultMessage)
+				if err == nil {
+					s.dispatchAlerts(ids)
+				}
 			}
 			if _, err := s.executorRepo.Update(ctx, executor); err != nil {
 				return err
@@ -202,6 +218,15 @@ func (s *Server) checkExecutorsOnce(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (s *Server) dispatchAlerts(ids []int64) {
+	if s.alerts == nil {
+		return
+	}
+	for _, id := range ids {
+		s.alerts.DispatchJobLogAlert(context.Background(), id)
+	}
 }
 
 func (s *Server) cleanupExpiredLogs(ctx context.Context) {

@@ -50,6 +50,7 @@ ChronoFlow 是一个面向内网单团队使用的轻量定时任务平台。它
 | 任务终止 | Admin 请求 Exec kill 进程组，适合 Shell 再拉起 Python 子进程的场景。 |
 | 日志存储 | MySQL 只保存日志元数据，完整日志正文保存为文件。 |
 | 运行报表 | 展示任务数量、调度次数、执行器数量、成功率和近 7 天趋势。 |
+| 飞书失败告警 | 在系统设置中配置飞书 Webhook，任务失败或超时时发送卡片告警。 |
 
 ## 界面预览
 
@@ -81,12 +82,14 @@ cd deploy
 cp .env.example .env
 ```
 
-推荐 Admin / Exec 使用固定版本镜像；UI 当前示例使用 `latest`，如果你也发布了 UI 版本标签，可以改成对应版本：
+已发布镜像可以在 [GitHub Packages](https://github.com/Honghuaijie?tab=packages) 查看。
+
+推荐使用固定版本镜像，便于回滚和排查问题：
 
 ```env
-CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.2
-CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.2
-CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:latest
+CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.3
+CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.3
+CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:v0.1.3
 ```
 
 如果需要使用项目内置 MySQL：
@@ -167,6 +170,12 @@ echo "done"
 ```
 
 手动运行后，在执行日志中应看到状态为 `success`，并能看到脚本输出。
+
+### 3. 配置失败告警
+
+进入“系统设置”，粘贴飞书自定义机器人的 Webhook 并保存。创建或编辑任务时开启“失败告警”，当任务最终状态为 `failed` 或 `timeout` 时，ChronoFlow 会发送飞书卡片。
+
+如果飞书机器人开启了关键词校验，请在飞书机器人安全设置中把关键词配置为 `ChronoFlow`。V1 不支持飞书签名 Secret；失败判断依赖进程退出码，不解析日志正文。Glue Shell 调用 Python 时建议使用 `set -euo pipefail`，确保 Python 报错会让任务返回非 0 退出码。
 
 ## 架构
 

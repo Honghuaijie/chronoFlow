@@ -79,6 +79,7 @@ message JobInfo {
   string description = 7;
   string created_at = 8;
   string updated_at = 9;
+  bool failure_alert_enabled = 10;
 }
 
 message CreateJobRequest {
@@ -87,6 +88,7 @@ message CreateJobRequest {
   string cron_expr = 3;
   int32 timeout_seconds = 4;
   string description = 5;
+  bool failure_alert_enabled = 6;
 }
 
 message UpdateJobRequest {
@@ -96,6 +98,7 @@ message UpdateJobRequest {
   string cron_expr = 4;
   int32 timeout_seconds = 5;
   string description = 6;
+  bool failure_alert_enabled = 7;
 }
 
 message DeleteJobRequest {

@@ -23,6 +23,7 @@ func NewHTTPServer(
 	glueSvc *service.GlueService,
 	jobLogSvc *service.JobLogService,
 	callbackSvc *service.CallbackService,
+	systemSettingsSvc *service.SystemSettingsService,
 	logger log.Logger,
 ) *http.Server {
 	opts := []http.ServerOption{
@@ -37,7 +38,7 @@ func NewHTTPServer(
 		http.Filter(
 			handlers.CORS(
 				handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
-				handlers.AllowedMethods([]string{"GET", "POST", "HEAD", "OPTIONS"}),
+				handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"}),
 				handlers.AllowedOrigins([]string{"*"}),
 			),
 		),
@@ -62,6 +63,7 @@ func NewHTTPServer(
 	v1.RegisterGlueHTTPServer(srv, glueSvc)
 	v1.RegisterJobLogHTTPServer(srv, jobLogSvc)
 	v1.RegisterJobRunCallbackHTTPServer(srv, callbackSvc)
+	v1.RegisterSystemSettingsHTTPServer(srv, systemSettingsSvc)
 	srv.Route("").GET("/health", handler.HealthCheckHandler)
 	srv.Route("").POST("/v1/users/avatarUpload", userSvc.AvatarUpload)
 	log.NewHelper(logger).Info("http routes registered")

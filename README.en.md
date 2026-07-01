@@ -48,6 +48,7 @@ It is designed for teams that currently manage many Shell / Python scripts with 
 | Kill operation | Admin asks Exec to kill the process group, useful when Shell starts Python subprocesses. |
 | File-based logs | MySQL stores metadata only; full log content is stored as files. |
 | Runtime report | View job count, run count, executor count, success rate, and recent 7-day trends. |
+| Feishu failure alerts | Configure a Feishu webhook in System Settings and send card alerts when jobs fail or time out. |
 
 ## Screenshots
 
@@ -79,12 +80,14 @@ cd deploy
 cp .env.example .env
 ```
 
-Admin / Exec fixed image versions are recommended. The UI example currently uses `latest`; if you also publish a UI version tag, replace it with that version:
+Published images are available on [GitHub Packages](https://github.com/Honghuaijie?tab=packages).
+
+Fixed image versions are recommended because they are easier to roll back and troubleshoot:
 
 ```env
-CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.2
-CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.2
-CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:latest
+CHRONOFLOW_ADMIN_IMAGE=ghcr.io/honghuaijie/chronoflow-admin:v0.1.3
+CHRONOFLOW_EXEC_IMAGE=ghcr.io/honghuaijie/chronoflow-exec:v0.1.3
+CHRONOFLOW_UI_IMAGE=ghcr.io/honghuaijie/chronoflow-ui:v0.1.3
 ```
 
 If you want to use the bundled MySQL service:
@@ -165,6 +168,12 @@ echo "done"
 ```
 
 After a manual run, the execution log should be `success` and include the script output.
+
+### 3. Configure failure alerts
+
+Open **System Settings**, paste the Feishu custom bot webhook, and save it. Then enable **Failure Alert** when creating or editing a job. ChronoFlow sends a Feishu card when the final job status is `failed` or `timeout`.
+
+If Feishu keyword verification is enabled, configure the bot keyword as `ChronoFlow`. V1 does not support Feishu signature secrets. Failure detection depends on the process exit code, not log text parsing. When Glue Shell calls Python scripts, `set -euo pipefail` is recommended so Python errors produce a non-zero task exit code.
 
 ## Architecture
 

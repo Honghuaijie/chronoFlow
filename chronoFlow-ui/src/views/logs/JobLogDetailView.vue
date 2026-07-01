@@ -6,6 +6,7 @@ import LogViewer from '@/components/LogViewer.vue'
 import PollingIndicator from '@/components/PollingIndicator.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useJobLogsStore } from '@/stores/jobLogs'
+import type { JobLogInfo } from '@/types/jobLog'
 import { formatBytes, formatDateTime, formatDuration } from '@/utils/datetime'
 import { isActiveLogStatus } from '@/utils/status'
 
@@ -39,6 +40,41 @@ async function kill() {
   }
   await store.killJob(log.value.jobId, log.value.id)
 }
+
+function alertStatusText(item: JobLogInfo): string {
+  if (!item.alertEnabledSnapshot) {
+    return '未启用'
+  }
+  if (item.alertStatus === 'sent') {
+    return '已发送'
+  }
+  if (item.alertStatus === 'pending') {
+    return '发送中'
+  }
+  if (item.alertStatus === 'failed') {
+    return '发送失败'
+  }
+  if (item.alertStatus === 'skipped') {
+    return '未发送'
+  }
+  return '未发送'
+}
+
+function alertTagColor(item: JobLogInfo): string {
+  if (!item.alertEnabledSnapshot) {
+    return 'default'
+  }
+  if (item.alertStatus === 'sent') {
+    return 'green'
+  }
+  if (item.alertStatus === 'failed') {
+    return 'red'
+  }
+  if (item.alertStatus === 'pending' || item.alertStatus === 'skipped') {
+    return 'orange'
+  }
+  return 'default'
+}
 </script>
 
 <template>
@@ -67,6 +103,13 @@ async function kill() {
           <a-descriptions-item label="退出码">{{ log.exitCode }}</a-descriptions-item>
           <a-descriptions-item label="日志大小">{{ formatBytes(log.logSizeBytes) }}</a-descriptions-item>
           <a-descriptions-item label="日志截断">{{ log.logTruncated ? '是' : '否' }}</a-descriptions-item>
+          <a-descriptions-item label="失败告警">
+            <a-space direction="vertical" size="small">
+              <a-tag :color="alertTagColor(log)">{{ alertStatusText(log) }}</a-tag>
+              <span v-if="log.alertSentAt" class="muted-text">{{ formatDateTime(log.alertSentAt) }}</span>
+              <span v-if="log.alertError" class="alert-error">{{ log.alertError }}</span>
+            </a-space>
+          </a-descriptions-item>
           <a-descriptions-item label="错误信息" :span="3">{{ log.errorMessage || '-' }}</a-descriptions-item>
           <a-descriptions-item label="日志路径" :span="3"><span class="mono">{{ log.logPath || '-' }}</span></a-descriptions-item>
         </a-descriptions>
@@ -91,5 +134,14 @@ async function kill() {
   background: #fff;
   border: 1px solid #d9e2f2;
   border-radius: 6px;
+}
+
+.alert-error {
+  display: inline-block;
+  max-width: 420px;
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
 }
 </style>

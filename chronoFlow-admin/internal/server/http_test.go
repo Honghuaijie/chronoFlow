@@ -165,7 +165,8 @@ func newTestHTTPServer(repo fakeUserRepo) *httptest.Server {
 	glueUC := biz.NewGlueUsecase(fakeGlueRepo{}, logger)
 	jobUC := biz.NewJobUsecase(fakeJobRepo{}, fakeGlueRepo{}, logger)
 	jobLogUC := biz.NewJobLogUsecase(fakeJobLogRepo{}, fakeLogReader{}, logger)
-	callbackUC := biz.NewCallbackUsecase(fakeJobLogRepo{}, fakeLogWriter{}, biz.CallbackConfig{MaxLogBytes: 1024}, logger)
+	callbackUC := biz.NewCallbackUsecase(fakeJobLogRepo{}, fakeLogWriter{}, biz.CallbackConfig{MaxLogBytes: 1024}, nil, logger)
+	systemSettingsUC := biz.NewSystemSettingUsecase(&serverSystemSettingRepo{}, fakeTokenCipher{}, logger)
 	srv := NewHTTPServer(
 		nil,
 		&conf.Security{JwtSecret: "secret", AdminUsername: "admin", AdminPassword: "admin123", CallbackToken: "callback"},
@@ -176,9 +177,23 @@ func newTestHTTPServer(repo fakeUserRepo) *httptest.Server {
 		service.NewGlueService(glueUC),
 		service.NewJobLogService(jobLogUC),
 		service.NewCallbackService(callbackUC, &conf.Security{CallbackToken: "callback"}),
+		service.NewSystemSettingsService(systemSettingsUC, nil),
 		logger,
 	)
 	return httptest.NewServer(srv)
+}
+
+type serverSystemSettingRepo struct{}
+
+func (*serverSystemSettingRepo) GetByKey(context.Context, string) (*biz.SystemSetting, error) {
+	return nil, nil
+}
+
+func (*serverSystemSettingRepo) Upsert(_ context.Context, setting *biz.SystemSetting) (*biz.SystemSetting, error) {
+	cp := *setting
+	cp.ID = 1
+	cp.UpdatedAt = time.Now()
+	return &cp, nil
 }
 
 func TestHTTPCreateUser_MissingNameOrEmail(t *testing.T) {

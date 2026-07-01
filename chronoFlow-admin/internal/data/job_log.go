@@ -141,16 +141,77 @@ func (r *JobLogRepo) Update(ctx context.Context, jobLog *biz.JobLog) (*biz.JobLo
 	model.LogSizeBytes = jobLog.LogSizeBytes
 	model.LogTruncated = jobLog.LogTruncated
 	model.ErrorMessage = jobLog.ErrorMessage
+	model.AlertEnabledSnapshot = jobLog.AlertEnabledSnapshot
+	model.AlertStatus = normalizedAlertStatus(jobLog.AlertStatus)
+	model.AlertError = jobLog.AlertError
+	model.AlertSentAt = jobLog.AlertSentAt
 	if err := db.Save(&model).Error; err != nil {
 		return nil, err
 	}
 	return toBizJobLog(&model), nil
 }
 
-func (r *JobLogRepo) MarkActiveLogsFailedByExecutorID(ctx context.Context, executorID int64, message string) error {
-	now := time.Now()
+func (r *JobLogRepo) MarkAlertPending(ctx context.Context, id int64) error {
 	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
-		Where("executor_id = ? AND status IN ?", executorID, []string{biz.JobLogStatusRunning, biz.JobLogStatusKilling}).
+		Where("id = ? AND alert_status IN ?", id, []string{"", biz.AlertStatusNone}).
+		Updates(map[string]any{
+			"alert_status":  biz.AlertStatusPending,
+			"alert_error":   "",
+			"alert_sent_at": nil,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkAlertSent(ctx context.Context, id int64, sentAt time.Time) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"alert_status":  biz.AlertStatusSent,
+			"alert_error":   "",
+			"alert_sent_at": sentAt,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkAlertFailed(ctx context.Context, id int64, message string) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"alert_status": biz.AlertStatusFailed,
+			"alert_error":  message,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkAlertSkipped(ctx context.Context, id int64, message string) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"alert_status": biz.AlertStatusSkipped,
+			"alert_error":  message,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkPendingAlertsFailed(ctx context.Context, message string) error {
+	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+		Where("alert_status = ?", biz.AlertStatusPending).
+		Updates(map[string]any{
+			"alert_status": biz.AlertStatusFailed,
+			"alert_error":  message,
+		}).Error
+}
+
+func (r *JobLogRepo) MarkActiveLogsFailedByExecutorID(ctx context.Context, executorID int64, message string) error {
+	_, err := r.MarkActiveLogsFailedByExecutorIDReturningIDs(ctx, executorID, message)
+	return err
+}
+
+func (r *JobLogRepo) MarkActiveLogsFailedByExecutorIDReturningIDs(ctx context.Context, executorID int64, message string) ([]int64, error) {
+	now := time.Now()
+	db := r.data.DB(ctx).WithContext(ctx)
+	ids, err := r.findActiveLogIDs(db, "executor_id = ?", executorID)
+	if err != nil || len(ids) == 0 {
+		return ids, err
+	}
+	return ids, db.Model(&JobLog{}).
+		Where("id IN ?", ids).
 		Updates(map[string]any{
 			"status":        biz.JobLogStatusFailed,
 			"end_time":      now,
@@ -159,9 +220,19 @@ func (r *JobLogRepo) MarkActiveLogsFailedByExecutorID(ctx context.Context, execu
 }
 
 func (r *JobLogRepo) MarkAllActiveLogsFailed(ctx context.Context, message string) error {
+	_, err := r.MarkAllActiveLogsFailedReturningIDs(ctx, message)
+	return err
+}
+
+func (r *JobLogRepo) MarkAllActiveLogsFailedReturningIDs(ctx context.Context, message string) ([]int64, error) {
 	now := time.Now()
-	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
-		Where("status IN ?", []string{biz.JobLogStatusRunning, biz.JobLogStatusKilling}).
+	db := r.data.DB(ctx).WithContext(ctx)
+	ids, err := r.findActiveLogIDs(db, "", nil)
+	if err != nil || len(ids) == 0 {
+		return ids, err
+	}
+	return ids, db.Model(&JobLog{}).
+		Where("id IN ?", ids).
 		Updates(map[string]any{
 			"status":        biz.JobLogStatusFailed,
 			"end_time":      now,
@@ -170,18 +241,45 @@ func (r *JobLogRepo) MarkAllActiveLogsFailed(ctx context.Context, message string
 }
 
 func (r *JobLogRepo) MarkKillingTimeoutLogsFailed(ctx context.Context, timeoutSeconds int32, message string) error {
+	_, err := r.MarkKillingTimeoutLogsFailedReturningIDs(ctx, timeoutSeconds, message)
+	return err
+}
+
+func (r *JobLogRepo) MarkKillingTimeoutLogsFailedReturningIDs(ctx context.Context, timeoutSeconds int32, message string) ([]int64, error) {
 	if timeoutSeconds <= 0 {
-		return nil
+		return nil, nil
 	}
 	now := time.Now()
 	deadline := now.Add(-time.Duration(timeoutSeconds) * time.Second)
-	return r.data.DB(ctx).WithContext(ctx).Model(&JobLog{}).
+	db := r.data.DB(ctx).WithContext(ctx)
+	var ids []int64
+	if err := db.Model(&JobLog{}).
 		Where("status = ? AND updated_at < ?", biz.JobLogStatusKilling, deadline).
+		Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return ids, nil
+	}
+	return ids, db.Model(&JobLog{}).
+		Where("id IN ?", ids).
 		Updates(map[string]any{
 			"status":        biz.JobLogStatusFailed,
 			"end_time":      now,
 			"error_message": message,
 		}).Error
+}
+
+func (r *JobLogRepo) findActiveLogIDs(db *gorm.DB, extraWhere string, arg any) ([]int64, error) {
+	var ids []int64
+	query := db.Model(&JobLog{}).Where("status IN ?", []string{biz.JobLogStatusRunning, biz.JobLogStatusKilling})
+	if extraWhere != "" {
+		query = query.Where(extraWhere, arg)
+	}
+	if err := query.Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (r *JobLogRepo) DeleteExpiredLogs(ctx context.Context, retentionDays int32) ([]string, error) {
@@ -216,25 +314,29 @@ func toJobLogModel(jobLog *biz.JobLog) *JobLog {
 		return nil
 	}
 	return &JobLog{
-		ID:              uint64(jobLog.ID),
-		JobID:           uint64(jobLog.JobID),
-		JobName:         jobLog.JobName,
-		ExecutorID:      uint64(jobLog.ExecutorID),
-		ExecutorName:    jobLog.ExecutorName,
-		ExecutorAddress: jobLog.ExecutorAddress,
-		CronExpr:        jobLog.CronExpr,
-		TimeoutSeconds:  jobLog.TimeoutSeconds,
-		GlueSnapshot:    jobLog.GlueSnapshot,
-		TriggerType:     jobLog.TriggerType,
-		Status:          jobLog.Status,
-		StartTime:       jobLog.StartTime,
-		EndTime:         jobLog.EndTime,
-		DurationMS:      jobLog.DurationMS,
-		ExitCode:        jobLog.ExitCode,
-		LogPath:         jobLog.LogPath,
-		LogSizeBytes:    jobLog.LogSizeBytes,
-		LogTruncated:    jobLog.LogTruncated,
-		ErrorMessage:    jobLog.ErrorMessage,
+		ID:                   uint64(jobLog.ID),
+		JobID:                uint64(jobLog.JobID),
+		JobName:              jobLog.JobName,
+		ExecutorID:           uint64(jobLog.ExecutorID),
+		ExecutorName:         jobLog.ExecutorName,
+		ExecutorAddress:      jobLog.ExecutorAddress,
+		CronExpr:             jobLog.CronExpr,
+		TimeoutSeconds:       jobLog.TimeoutSeconds,
+		GlueSnapshot:         jobLog.GlueSnapshot,
+		TriggerType:          jobLog.TriggerType,
+		Status:               jobLog.Status,
+		StartTime:            jobLog.StartTime,
+		EndTime:              jobLog.EndTime,
+		DurationMS:           jobLog.DurationMS,
+		ExitCode:             jobLog.ExitCode,
+		LogPath:              jobLog.LogPath,
+		LogSizeBytes:         jobLog.LogSizeBytes,
+		LogTruncated:         jobLog.LogTruncated,
+		ErrorMessage:         jobLog.ErrorMessage,
+		AlertEnabledSnapshot: jobLog.AlertEnabledSnapshot,
+		AlertStatus:          normalizedAlertStatus(jobLog.AlertStatus),
+		AlertError:           jobLog.AlertError,
+		AlertSentAt:          jobLog.AlertSentAt,
 	}
 }
 
@@ -243,26 +345,37 @@ func toBizJobLog(model *JobLog) *biz.JobLog {
 		return nil
 	}
 	return &biz.JobLog{
-		ID:              int64(model.ID),
-		JobID:           int64(model.JobID),
-		JobName:         model.JobName,
-		ExecutorID:      int64(model.ExecutorID),
-		ExecutorName:    model.ExecutorName,
-		ExecutorAddress: model.ExecutorAddress,
-		CronExpr:        model.CronExpr,
-		TimeoutSeconds:  model.TimeoutSeconds,
-		GlueSnapshot:    model.GlueSnapshot,
-		TriggerType:     model.TriggerType,
-		Status:          model.Status,
-		StartTime:       model.StartTime,
-		EndTime:         model.EndTime,
-		DurationMS:      model.DurationMS,
-		ExitCode:        model.ExitCode,
-		LogPath:         model.LogPath,
-		LogSizeBytes:    model.LogSizeBytes,
-		LogTruncated:    model.LogTruncated,
-		ErrorMessage:    model.ErrorMessage,
-		CreatedAt:       model.CreatedAt,
-		UpdatedAt:       model.UpdatedAt,
+		ID:                   int64(model.ID),
+		JobID:                int64(model.JobID),
+		JobName:              model.JobName,
+		ExecutorID:           int64(model.ExecutorID),
+		ExecutorName:         model.ExecutorName,
+		ExecutorAddress:      model.ExecutorAddress,
+		CronExpr:             model.CronExpr,
+		TimeoutSeconds:       model.TimeoutSeconds,
+		GlueSnapshot:         model.GlueSnapshot,
+		TriggerType:          model.TriggerType,
+		Status:               model.Status,
+		StartTime:            model.StartTime,
+		EndTime:              model.EndTime,
+		DurationMS:           model.DurationMS,
+		ExitCode:             model.ExitCode,
+		LogPath:              model.LogPath,
+		LogSizeBytes:         model.LogSizeBytes,
+		LogTruncated:         model.LogTruncated,
+		ErrorMessage:         model.ErrorMessage,
+		AlertEnabledSnapshot: model.AlertEnabledSnapshot,
+		AlertStatus:          normalizedAlertStatus(model.AlertStatus),
+		AlertError:           model.AlertError,
+		AlertSentAt:          model.AlertSentAt,
+		CreatedAt:            model.CreatedAt,
+		UpdatedAt:            model.UpdatedAt,
 	}
+}
+
+func normalizedAlertStatus(status string) string {
+	if status == "" {
+		return biz.AlertStatusNone
+	}
+	return status
 }

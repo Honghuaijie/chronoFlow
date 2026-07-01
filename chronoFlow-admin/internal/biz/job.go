@@ -11,32 +11,35 @@ import (
 )
 
 type Job struct {
-	ID             int64
-	ExecutorID     int64
-	Name           string
-	CronExpr       string
-	TimeoutSeconds int32
-	ScheduleStatus string
-	Description    string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                  int64
+	ExecutorID          int64
+	Name                string
+	CronExpr            string
+	TimeoutSeconds      int32
+	ScheduleStatus      string
+	Description         string
+	FailureAlertEnabled bool
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type CreateJobInput struct {
-	ExecutorID     int64
-	Name           string
-	CronExpr       string
-	TimeoutSeconds int32
-	Description    string
+	ExecutorID          int64
+	Name                string
+	CronExpr            string
+	TimeoutSeconds      int32
+	Description         string
+	FailureAlertEnabled bool
 }
 
 type UpdateJobInput struct {
-	ID             int64
-	ExecutorID     int64
-	Name           string
-	CronExpr       string
-	TimeoutSeconds int32
-	Description    string
+	ID                  int64
+	ExecutorID          int64
+	Name                string
+	CronExpr            string
+	TimeoutSeconds      int32
+	Description         string
+	FailureAlertEnabled bool
 }
 
 type JobRepo interface {
@@ -62,7 +65,7 @@ func NewJobUsecase(repo JobRepo, glueRepo GlueRepo, logger log.Logger) *JobUseca
 }
 
 func (uc *JobUsecase) CreateJob(ctx context.Context, input *CreateJobInput) (*Job, error) {
-	job, err := normalizeJobInput(input.ExecutorID, input.Name, input.CronExpr, input.TimeoutSeconds, input.Description)
+	job, err := normalizeJobInput(input.ExecutorID, input.Name, input.CronExpr, input.TimeoutSeconds, input.Description, input.FailureAlertEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +81,7 @@ func (uc *JobUsecase) UpdateJob(ctx context.Context, input *UpdateJobInput) (*Jo
 	if err != nil {
 		return nil, err
 	}
-	normalized, err := normalizeJobInput(input.ExecutorID, input.Name, input.CronExpr, input.TimeoutSeconds, input.Description)
+	normalized, err := normalizeJobInput(input.ExecutorID, input.Name, input.CronExpr, input.TimeoutSeconds, input.Description, input.FailureAlertEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +90,7 @@ func (uc *JobUsecase) UpdateJob(ctx context.Context, input *UpdateJobInput) (*Jo
 	existing.CronExpr = normalized.CronExpr
 	existing.TimeoutSeconds = normalized.TimeoutSeconds
 	existing.Description = normalized.Description
+	existing.FailureAlertEnabled = normalized.FailureAlertEnabled
 	return uc.repo.Update(ctx, existing)
 }
 
@@ -147,7 +151,7 @@ func (uc *JobUsecase) mustGetJob(ctx context.Context, id int64) (*Job, error) {
 	return job, nil
 }
 
-func normalizeJobInput(executorID int64, name string, cronExpr string, timeoutSeconds int32, description string) (*Job, error) {
+func normalizeJobInput(executorID int64, name string, cronExpr string, timeoutSeconds int32, description string, failureAlertEnabled bool) (*Job, error) {
 	if executorID <= 0 {
 		return nil, httpErrors.EWithMessage(httpErrors.ErrInvalidID, "executor_id 无效")
 	}
@@ -163,11 +167,12 @@ func normalizeJobInput(executorID int64, name string, cronExpr string, timeoutSe
 		return nil, httpErrors.EWithMessage(httpErrors.ErrInvalidParam, "timeout_seconds 必须大于 0")
 	}
 	return &Job{
-		ExecutorID:     executorID,
-		Name:           name,
-		CronExpr:       cronExpr,
-		TimeoutSeconds: timeoutSeconds,
-		Description:    strings.TrimSpace(description),
+		ExecutorID:          executorID,
+		Name:                name,
+		CronExpr:            cronExpr,
+		TimeoutSeconds:      timeoutSeconds,
+		Description:         strings.TrimSpace(description),
+		FailureAlertEnabled: failureAlertEnabled,
 	}, nil
 }
 

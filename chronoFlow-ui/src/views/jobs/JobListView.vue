@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Modal } from 'ant-design-vue'
+import { getAlertSettings } from '@/api/systemSettings'
 import CronExpressionPicker from '@/components/CronExpressionPicker.vue'
 import PageHeaderBar from '@/components/PageHeaderBar.vue'
 import PollingIndicator from '@/components/PollingIndicator.vue'
@@ -11,6 +12,7 @@ import { useJobLogsStore } from '@/stores/jobLogs'
 import { useJobsStore } from '@/stores/jobs'
 import type { ExecutorInfo } from '@/types/executor'
 import type { JobForm, JobInfo } from '@/types/job'
+import type { AlertSettings } from '@/types/systemSettings'
 import { formatNextRunTime } from '@/utils/cron'
 import { formatDateTime } from '@/utils/datetime'
 import { isActiveLogStatus } from '@/utils/status'
@@ -25,6 +27,10 @@ const glueDrawerOpen = ref(false)
 const editingId = ref('')
 const glueJob = ref<JobInfo | null>(null)
 const pollingTimer = ref<number | null>(null)
+const alertSettings = ref<AlertSettings>({
+  feishuWebhookConfigured: false,
+  feishuWebhookUpdatedAt: '',
+})
 
 const form = reactive<JobForm>({
   executorId: '',
@@ -32,6 +38,7 @@ const form = reactive<JobForm>({
   cronExpr: '0 */5 * * * *',
   timeoutSeconds: 3600,
   description: '',
+  failureAlertEnabled: false,
 })
 
 const executorOptions = computed(() =>
@@ -52,7 +59,7 @@ const selectedExecutorId = computed({
 })
 
 onMounted(async () => {
-  await Promise.all([executorsStore.fetchList(), jobsStore.fetchList(), refreshActiveLogs()])
+  await Promise.all([executorsStore.fetchList(), jobsStore.fetchList(), refreshActiveLogs(), refreshAlertSettings()])
   pollingTimer.value = window.setInterval(() => {
     void refreshActiveLogs()
   }, 5000)
@@ -66,6 +73,27 @@ onBeforeUnmount(() => {
 
 async function refreshActiveLogs() {
   await logsStore.fetchActiveList()
+}
+
+async function refreshAlertSettings() {
+  try {
+    alertSettings.value = await getAlertSettings()
+  } catch {
+    alertSettings.value = {
+      feishuWebhookConfigured: false,
+      feishuWebhookUpdatedAt: '',
+    }
+  }
+}
+
+function alertTooltip(row: JobInfo) {
+  if (!row.failureAlertEnabled) {
+    return '任务失败或超时时不会发送告警'
+  }
+  if (!alertSettings.value.feishuWebhookConfigured) {
+    return '系统设置未配置飞书 Webhook，失败时不会发送'
+  }
+  return '任务失败或超时时发送飞书告警'
 }
 
 async function applyFilters() {
@@ -85,6 +113,7 @@ function resetForm() {
   form.cronExpr = '0 */5 * * * *'
   form.timeoutSeconds = 3600
   form.description = ''
+  form.failureAlertEnabled = false
 }
 
 function openCreate() {
@@ -100,6 +129,7 @@ function openEdit(row: JobInfo) {
   form.cronExpr = row.cronExpr
   form.timeoutSeconds = row.timeoutSeconds
   form.description = row.description
+  form.failureAlertEnabled = row.failureAlertEnabled
   jobModalOpen.value = true
 }
 
@@ -233,6 +263,19 @@ async function runNow(row: JobInfo) {
         <a-table-column title="更新时间" data-index="updatedAt" :width="180">
           <template #default="{ text }">{{ formatDateTime(text) }}</template>
         </a-table-column>
+        <a-table-column title="失败告警" data-index="failureAlertEnabled" :width="110">
+          <template #default="{ record }">
+            <a-tooltip :title="alertTooltip(record as JobInfo)">
+              <a-tag
+                v-if="(record as JobInfo).failureAlertEnabled"
+                :color="alertSettings.feishuWebhookConfigured ? 'blue' : 'orange'"
+              >
+                开启
+              </a-tag>
+              <a-tag v-else>关闭</a-tag>
+            </a-tooltip>
+          </template>
+        </a-table-column>
         <a-table-column title="说明" data-index="description" :width="260">
           <template #default="{ text }">
             <a-tooltip v-if="text" :title="text">
@@ -297,6 +340,10 @@ async function runNow(row: JobInfo) {
         <a-form-item label="超时时间（秒）" required>
           <a-input-number v-model:value="form.timeoutSeconds" :min="1" :max="604800" style="width: 100%" />
         </a-form-item>
+        <a-form-item label="失败告警" name="failureAlertEnabled">
+          <a-switch v-model:checked="form.failureAlertEnabled" />
+          <div class="form-help">任务执行失败或超时时发送飞书告警；需先在系统设置中配置飞书 Webhook。</div>
+        </a-form-item>
         <a-form-item label="说明">
           <a-textarea v-model:value="form.description" :rows="3" />
         </a-form-item>
@@ -333,5 +380,12 @@ async function runNow(row: JobInfo) {
   word-break: break-word;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.form-help {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

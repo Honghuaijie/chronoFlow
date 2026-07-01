@@ -69,11 +69,12 @@ func TestJobUsecaseCreateDefaultsStopped(t *testing.T) {
 	uc := NewJobUsecase(jobRepo, fakeGlueExistRepo{}, log.DefaultLogger)
 
 	got, err := uc.CreateJob(context.Background(), &CreateJobInput{
-		ExecutorID:     10,
-		Name:           "  daily  ",
-		CronExpr:       "0 0 1 * * *",
-		TimeoutSeconds: 30,
-		Description:    " desc ",
+		ExecutorID:          10,
+		Name:                "  daily  ",
+		CronExpr:            "0 0 1 * * *",
+		TimeoutSeconds:      30,
+		Description:         " desc ",
+		FailureAlertEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("CreateJob returned error: %v", err)
@@ -83,6 +84,26 @@ func TestJobUsecaseCreateDefaultsStopped(t *testing.T) {
 	}
 	if got.Name != "daily" || got.Description != "desc" {
 		t.Fatalf("expected normalized fields, got %+v", got)
+	}
+	if !got.FailureAlertEnabled {
+		t.Fatal("expected failure alert enabled")
+	}
+
+	got.FailureAlertEnabled = false
+	updated, err := uc.UpdateJob(context.Background(), &UpdateJobInput{
+		ID:                  got.ID,
+		ExecutorID:          got.ExecutorID,
+		Name:                got.Name,
+		CronExpr:            got.CronExpr,
+		TimeoutSeconds:      got.TimeoutSeconds,
+		Description:         got.Description,
+		FailureAlertEnabled: false,
+	})
+	if err != nil {
+		t.Fatalf("UpdateJob returned error: %v", err)
+	}
+	if updated.FailureAlertEnabled {
+		t.Fatal("expected failure alert disabled")
 	}
 }
 

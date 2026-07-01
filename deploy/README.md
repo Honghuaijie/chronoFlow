@@ -48,6 +48,8 @@ docker compose up -d --build
 docker compose -f docker-compose.image.yml up -d
 ```
 
+已发布镜像列表可在 [GitHub Packages](https://github.com/Honghuaijie?tab=packages) 查看。
+
 打开：
 
 ```text
@@ -178,6 +180,26 @@ Token 填 `.env` 中的：
 ```env
 EXECUTOR_TOKEN=default-exec-token
 ```
+
+## 飞书失败告警
+
+ChronoFlow V1 支持飞书自定义机器人 Webhook 失败告警。配置步骤：
+
+1. 在飞书群中进入群设置。
+2. 添加自定义机器人。
+3. 复制机器人 Webhook。
+4. 登录 ChronoFlow，进入“系统设置”。
+5. 粘贴 Webhook 并保存。
+6. 点击“测试发送”，确认飞书群能收到测试卡片。
+7. 创建或编辑任务时开启“失败告警”。
+
+说明：
+
+- V1 不支持飞书签名 Secret。
+- 如需飞书安全策略，建议使用关键词校验，并把飞书机器人关键词配置为 `ChronoFlow`；或暂不启用签名校验。
+- 任务失败判断依赖进程退出码，不解析日志正文。
+- Glue Shell 调用 Python 时推荐使用 `set -euo pipefail`，确保 Python 报错会让任务返回非 0 退出码。
+- 页面不会回显 Webhook 明文，请自行保存好原始 Webhook。
 
 ## 脚本挂载
 
