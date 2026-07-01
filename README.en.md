@@ -80,6 +80,8 @@ cd deploy
 cp .env.example .env
 ```
 
+Published images are available on [GitHub Packages](https://github.com/Honghuaijie?tab=packages).
+
 Admin / Exec fixed image versions are recommended. The UI example currently uses `latest`; if you also publish a UI version tag, replace it with that version:
 
 ```env

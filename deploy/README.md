@@ -48,6 +48,8 @@ docker compose up -d --build
 docker compose -f docker-compose.image.yml up -d
 ```
 
+已发布镜像列表可在 [GitHub Packages](https://github.com/Honghuaijie?tab=packages) 查看。
+
 打开：
 
 ```text

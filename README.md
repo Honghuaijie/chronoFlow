@@ -82,6 +82,8 @@ cd deploy
 cp .env.example .env
 ```
 
+已发布镜像可以在 [GitHub Packages](https://github.com/Honghuaijie?tab=packages) 查看。
+
 推荐 Admin / Exec 使用固定版本镜像；UI 当前示例使用 `latest`，如果你也发布了 UI 版本标签，可以改成对应版本：
 
 ```env
