@@ -25,6 +25,7 @@ var ProviderSet = wire.NewSet(
 	NewJobRepo,
 	NewGlueRepo,
 	NewJobLogRepo,
+	NewSystemSettingRepo,
 	wire.Bind(new(biz.ExecutorRepo), new(*ExecutorRepo)),
 	wire.Bind(new(biz.ExecutorLookupRepo), new(*ExecutorRepo)),
 	wire.Bind(new(biz.JobRepo), new(*JobRepo)),
@@ -33,6 +34,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(biz.JobLogRepo), new(*JobLogRepo)),
 	wire.Bind(new(biz.JobRunLogRepo), new(*JobLogRepo)),
 	wire.Bind(new(biz.JobLogMaintenanceRepo), new(*JobLogRepo)),
+	wire.Bind(new(biz.SystemSettingRepo), new(*SystemSettingRepo)),
 )
 
 type Data struct {
@@ -76,7 +78,7 @@ func NewDB(c *conf.Data) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&User{}, &Executor{}, &Job{}, &JobGlue{}, &JobLog{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &Executor{}, &Job{}, &JobGlue{}, &JobLog{}, &SystemSetting{}); err != nil {
 		return nil, err
 	}
 	return db, nil

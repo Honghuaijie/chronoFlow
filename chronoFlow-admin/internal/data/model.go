@@ -99,3 +99,14 @@ type JobLog struct {
 func (JobLog) TableName() string {
 	return "job_logs"
 }
+
+type SystemSetting struct {
+	ID uint64 `json:"id" gorm:"primaryKey;autoIncrement"`
+	ModelOpt
+	SettingKey     string `json:"settingKey" gorm:"column:setting_key;size:128;not null;uniqueIndex"`
+	ValueEncrypted string `json:"valueEncrypted" gorm:"column:value_encrypted;type:text"`
+}
+
+func (SystemSetting) TableName() string {
+	return "system_settings"
+}

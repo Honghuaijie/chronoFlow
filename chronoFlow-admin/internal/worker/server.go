@@ -16,6 +16,7 @@ import (
 const unknownResultMessage = "执行器重启或失联，执行结果未知"
 
 var ProviderSet = wire.NewSet(
+	biz.NewJobRunUsecase,
 	NewServer,
 	wire.Bind(new(JobRunner), new(*biz.JobRunUsecase)),
 )

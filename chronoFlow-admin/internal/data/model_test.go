@@ -17,6 +17,7 @@ func TestChronoFlowModelsTableNames(t *testing.T) {
 		{name: "job", got: Job{}.TableName(), want: "jobs"},
 		{name: "job_glue", got: JobGlue{}.TableName(), want: "job_glues"},
 		{name: "job_log", got: JobLog{}.TableName(), want: "job_logs"},
+		{name: "system_setting", got: SystemSetting{}.TableName(), want: "system_settings"},
 	}
 
 	for _, tt := range tests {

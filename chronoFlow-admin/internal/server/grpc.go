@@ -19,6 +19,7 @@ func NewGRPCServer(
 	glueSvc *service.GlueService,
 	jobLogSvc *service.JobLogService,
 	callbackSvc *service.CallbackService,
+	systemSettingsSvc *service.SystemSettingsService,
 	logger log.Logger,
 ) *grpc.Server {
 	opts := []grpc.ServerOption{
@@ -47,5 +48,6 @@ func NewGRPCServer(
 	v1.RegisterGlueServer(srv, glueSvc)
 	v1.RegisterJobLogServer(srv, jobLogSvc)
 	v1.RegisterJobRunCallbackServer(srv, callbackSvc)
+	v1.RegisterSystemSettingsServer(srv, systemSettingsSvc)
 	return srv
 }

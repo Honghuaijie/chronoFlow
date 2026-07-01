@@ -13,8 +13,8 @@ var ProviderSet = wire.NewSet(
 	NewJobUsecase,
 	NewGlueUsecase,
 	NewJobLogUsecase,
-	NewJobRunUsecase,
 	NewCallbackUsecase,
+	NewSystemSettingUsecase,
 	NewJobRunConfig,
 	NewCallbackConfig,
 )
