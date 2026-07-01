@@ -87,6 +87,14 @@ function confirmClear() {
           description="保存后页面只显示已配置或未配置。请你自己妥善保存飞书机器人 Webhook；需要更换时直接粘贴新的 Webhook 覆盖保存。V1 不支持飞书签名 Secret。"
         />
 
+        <a-alert
+          class="settings-tip"
+          type="warning"
+          show-icon
+          message="飞书关键词校验"
+          description="如果你的飞书机器人开启了关键词校验，请在飞书机器人安全设置中把关键词配置为 ChronoFlow。测试发送或任务告警返回 Key Words Not Found 时，通常就是关键词没有配置或不匹配。"
+        />
+
         <a-descriptions class="settings-status" bordered size="small" :column="2">
           <a-descriptions-item label="配置状态">
             <a-tag v-if="settings.feishuWebhookConfigured" color="green">已配置</a-tag>
@@ -132,6 +140,10 @@ function confirmClear() {
 <style scoped>
 .settings-card {
   margin-bottom: 16px;
+}
+
+.settings-tip {
+  margin-top: 12px;
 }
 
 .settings-status,
