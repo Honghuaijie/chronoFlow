@@ -72,26 +72,34 @@ func toJobLogInfo(jobLog *biz.JobLog) *v1.JobLogInfo {
 	if jobLog.ExitCode != nil {
 		exitCode = *jobLog.ExitCode
 	}
+	alertSentAt := ""
+	if jobLog.AlertSentAt != nil {
+		alertSentAt = formatServiceTime(*jobLog.AlertSentAt)
+	}
 	return &v1.JobLogInfo{
-		Id:              jobLog.ID,
-		JobId:           jobLog.JobID,
-		JobName:         jobLog.JobName,
-		ExecutorId:      jobLog.ExecutorID,
-		ExecutorName:    jobLog.ExecutorName,
-		ExecutorAddress: jobLog.ExecutorAddress,
-		CronExpr:        jobLog.CronExpr,
-		TimeoutSeconds:  jobLog.TimeoutSeconds,
-		TriggerType:     jobLog.TriggerType,
-		Status:          jobLog.Status,
-		StartTime:       formatServiceTime(jobLog.StartTime),
-		EndTime:         endTime,
-		DurationMs:      jobLog.DurationMS,
-		ExitCode:        exitCode,
-		LogPath:         jobLog.LogPath,
-		LogSizeBytes:    jobLog.LogSizeBytes,
-		LogTruncated:    jobLog.LogTruncated,
-		ErrorMessage:    jobLog.ErrorMessage,
-		CreatedAt:       formatServiceTime(jobLog.CreatedAt),
-		UpdatedAt:       formatServiceTime(jobLog.UpdatedAt),
+		Id:                   jobLog.ID,
+		JobId:                jobLog.JobID,
+		JobName:              jobLog.JobName,
+		ExecutorId:           jobLog.ExecutorID,
+		ExecutorName:         jobLog.ExecutorName,
+		ExecutorAddress:      jobLog.ExecutorAddress,
+		CronExpr:             jobLog.CronExpr,
+		TimeoutSeconds:       jobLog.TimeoutSeconds,
+		TriggerType:          jobLog.TriggerType,
+		Status:               jobLog.Status,
+		StartTime:            formatServiceTime(jobLog.StartTime),
+		EndTime:              endTime,
+		DurationMs:           jobLog.DurationMS,
+		ExitCode:             exitCode,
+		LogPath:              jobLog.LogPath,
+		LogSizeBytes:         jobLog.LogSizeBytes,
+		LogTruncated:         jobLog.LogTruncated,
+		ErrorMessage:         jobLog.ErrorMessage,
+		CreatedAt:            formatServiceTime(jobLog.CreatedAt),
+		UpdatedAt:            formatServiceTime(jobLog.UpdatedAt),
+		AlertEnabledSnapshot: jobLog.AlertEnabledSnapshot,
+		AlertStatus:          jobLog.AlertStatus,
+		AlertError:           jobLog.AlertError,
+		AlertSentAt:          alertSentAt,
 	}
 }

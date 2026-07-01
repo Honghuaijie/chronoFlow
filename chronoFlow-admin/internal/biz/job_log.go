@@ -14,27 +14,31 @@ import (
 const MissingLogContentMessage = "日志文件不存在或已被清理"
 
 type JobLog struct {
-	ID              int64
-	JobID           int64
-	JobName         string
-	ExecutorID      int64
-	ExecutorName    string
-	ExecutorAddress string
-	CronExpr        string
-	TimeoutSeconds  int32
-	GlueSnapshot    string
-	TriggerType     string
-	Status          string
-	StartTime       time.Time
-	EndTime         *time.Time
-	DurationMS      int64
-	ExitCode        *int32
-	LogPath         string
-	LogSizeBytes    int64
-	LogTruncated    bool
-	ErrorMessage    string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                   int64
+	JobID                int64
+	JobName              string
+	ExecutorID           int64
+	ExecutorName         string
+	ExecutorAddress      string
+	CronExpr             string
+	TimeoutSeconds       int32
+	GlueSnapshot         string
+	TriggerType          string
+	Status               string
+	StartTime            time.Time
+	EndTime              *time.Time
+	DurationMS           int64
+	ExitCode             *int32
+	LogPath              string
+	LogSizeBytes         int64
+	LogTruncated         bool
+	ErrorMessage         string
+	AlertEnabledSnapshot bool
+	AlertStatus          string
+	AlertError           string
+	AlertSentAt          *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type JobLogFilter struct {

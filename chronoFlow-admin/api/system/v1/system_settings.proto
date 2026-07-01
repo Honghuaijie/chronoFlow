@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package system.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "chronoFlow-admin/api/all-pb-go/v1;v1";
+
+service SystemSettings {
+  rpc GetAlertSettings (GetAlertSettingsRequest) returns (GetAlertSettingsReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/system/settings/alert"
+    };
+  }
+
+  rpc SaveFeishuWebhook (SaveFeishuWebhookRequest) returns (SaveFeishuWebhookReply) {
+    option (google.api.http) = {
+      put: "/v1/admin/system/settings/alert/feishu"
+      body: "*"
+    };
+  }
+
+  rpc TestFeishuWebhook (TestFeishuWebhookRequest) returns (TestFeishuWebhookReply) {
+    option (google.api.http) = {
+      post: "/v1/admin/system/settings/alert/feishu/test"
+      body: "*"
+    };
+  }
+
+  rpc ClearFeishuWebhook (ClearFeishuWebhookRequest) returns (ClearFeishuWebhookReply) {
+    option (google.api.http) = {
+      delete: "/v1/admin/system/settings/alert/feishu"
+    };
+  }
+}
+
+message AlertSettingsInfo {
+  bool feishu_webhook_configured = 1;
+  string feishu_webhook_updated_at = 2;
+}
+
+message GetAlertSettingsRequest {}
+
+message SaveFeishuWebhookRequest {
+  string webhook = 1;
+}
+
+message TestFeishuWebhookRequest {}
+
+message ClearFeishuWebhookRequest {}
+
+message GetAlertSettingsReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    AlertSettingsInfo settings = 1;
+  }
+  Data data = 3;
+}
+
+message SaveFeishuWebhookReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    AlertSettingsInfo settings = 1;
+  }
+  Data data = 3;
+}
+
+message TestFeishuWebhookReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    string status = 1;
+  }
+  Data data = 3;
+}
+
+message ClearFeishuWebhookReply {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    AlertSettingsInfo settings = 1;
+  }
+  Data data = 3;
+}

@@ -17,16 +17,20 @@ func TestJobServiceCreateJob(t *testing.T) {
 	svc := NewJobService(uc, nil, nil)
 
 	reply, err := svc.CreateJob(context.Background(), &v1.CreateJobRequest{
-		ExecutorId:     10,
-		Name:           "daily",
-		CronExpr:       "0 0 1 * * *",
-		TimeoutSeconds: 30,
+		ExecutorId:          10,
+		Name:                "daily",
+		CronExpr:            "0 0 1 * * *",
+		TimeoutSeconds:      30,
+		FailureAlertEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("CreateJob returned error: %v", err)
 	}
 	if reply.GetData().GetJob().GetScheduleStatus() != biz.ScheduleStatusStopped {
 		t.Fatalf("expected stopped, got %q", reply.GetData().GetJob().GetScheduleStatus())
+	}
+	if !reply.GetData().GetJob().GetFailureAlertEnabled() {
+		t.Fatal("expected failure alert enabled")
 	}
 }
 
@@ -45,8 +49,20 @@ func TestGlueServiceSaveGlue(t *testing.T) {
 
 func TestJobLogServiceDetail(t *testing.T) {
 	now := time.Now()
+	alertSentAt := now.Add(time.Minute)
 	uc := biz.NewJobLogUsecase(serviceJobLogRepo{items: []*biz.JobLog{
-		{ID: 1, JobID: 10, JobName: "daily", Status: biz.JobLogStatusSuccess, StartTime: now, LogPath: "logs/1.log", GlueSnapshot: "echo hi"},
+		{
+			ID:                   1,
+			JobID:                10,
+			JobName:              "daily",
+			Status:               biz.JobLogStatusSuccess,
+			StartTime:            now,
+			LogPath:              "logs/1.log",
+			GlueSnapshot:         "echo hi",
+			AlertEnabledSnapshot: true,
+			AlertStatus:          "sent",
+			AlertSentAt:          &alertSentAt,
+		},
 	}}, serviceLogReader{content: "hello"}, log.DefaultLogger)
 	svc := NewJobLogService(uc)
 
@@ -56,6 +72,15 @@ func TestJobLogServiceDetail(t *testing.T) {
 	}
 	if reply.GetData().GetLogContent() != "hello" || reply.GetData().GetGlueSnapshot() != "echo hi" {
 		t.Fatalf("unexpected reply: %+v", reply)
+	}
+	if !reply.GetData().GetLog().GetAlertEnabledSnapshot() {
+		t.Fatal("expected alert snapshot enabled")
+	}
+	if reply.GetData().GetLog().GetAlertStatus() != "sent" {
+		t.Fatalf("expected alert sent, got %q", reply.GetData().GetLog().GetAlertStatus())
+	}
+	if reply.GetData().GetLog().GetAlertSentAt() == "" {
+		t.Fatal("expected alert sent time")
 	}
 }
 

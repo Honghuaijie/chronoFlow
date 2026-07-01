@@ -41,6 +41,10 @@ message JobLogInfo {
   string error_message = 18;
   string created_at = 19;
   string updated_at = 20;
+  bool alert_enabled_snapshot = 21;
+  string alert_status = 22;
+  string alert_error = 23;
+  string alert_sent_at = 24;
 }
 
 message ListJobLogsRequest {
@@ -76,4 +80,3 @@ message GetJobLogDetailReply {
   }
   Data data = 3;
 }
-
